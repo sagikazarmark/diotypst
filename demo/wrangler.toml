@@ -1,0 +1,20 @@
+name = "diotypst-demo"
+main = "dist/worker/index.js"
+compatibility_date = "2026-05-30"
+
+send_metrics = false
+workers_dev = true
+preview_urls = true
+
+route = { pattern = "typst-demo.dioxus.cc", custom_domain = true, zone_name = "dioxus.cc" }
+
+[observability]
+enabled = true
+
+[assets]
+binding = "ASSETS"
+directory = "dist/public"
+not_found_handling = "single-page-application"
+# Cloudflare serves static assets directly and only invokes the Worker for the
+# package proxy surface: everything else is the SPA.
+run_worker_first = ["/typst/*"]

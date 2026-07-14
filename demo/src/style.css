@@ -1,0 +1,57 @@
+@import "tailwindcss" source(none);
+
+@source "./**/*.rs";
+
+@plugin "daisyui" {
+  themes: light --default, dark;
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+}
+
+/* dioxus-code-editor's input layer is `color: transparent`, so its default
+ * caret color (currentColor) is invisible. Point the caret at the code
+ * theme's foreground variable, which follows the light/dark selection. */
+@layer components {
+  .dxc-editor {
+    --dxc-editor-caret: var(--fg, currentColor);
+  }
+}
+
+/* Typst's semantic HTML artifacts arrive unstyled and Tailwind's preflight
+ * strips element defaults, so give the preview container readable typography
+ * without leaking styles into the rest of the page. */
+@layer components {
+  .typst-preview :is(h1, h2, h3, h4) {
+    font-weight: 700;
+    line-height: 1.25;
+    margin-block: 0.75em 0.35em;
+  }
+
+  .typst-preview h1 {
+    font-size: 1.5rem;
+  }
+
+  .typst-preview h2 {
+    font-size: 1.25rem;
+  }
+
+  .typst-preview p {
+    margin-block: 0.5em;
+  }
+
+  .typst-preview :is(ul, ol) {
+    list-style: revert;
+    margin-block: 0.5em;
+    padding-inline-start: 1.5em;
+  }
+
+  .typst-preview svg,
+  .typst-preview img {
+    max-width: 100%;
+    height: auto;
+  }
+}

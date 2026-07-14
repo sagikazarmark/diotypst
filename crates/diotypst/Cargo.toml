@@ -1,0 +1,72 @@
+[package]
+name = "diotypst"
+version.workspace = true
+description = "Typst integration primitives for Dioxus apps"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["typst", "dioxus", "typesetting", "pdf", "wasm"]
+categories = ["gui", "wasm", "web-programming"]
+
+[features]
+default = []
+# Render Capabilities, forwarded to libtypst; see its feature docs.
+pdf = ["libtypst/pdf"]
+page-images = ["libtypst/page-images"]
+html = ["libtypst/html"]
+bundled-fonts = ["libtypst/bundled-fonts"]
+dioxus = ["dep:dioxus", "dioxus/html", "dioxus/macro"]
+serde = ["dep:serde", "libtypst/serde"]
+server = ["dep:axum", "serde"]
+# Parse verbatim Typst Universe `.tar.gz` archives into Package Bundles (wasm-safe).
+archive = ["libtypst/archive"]
+# Serve unpacked packages from Typst CLI-style package directories (native).
+fs-packages = ["libtypst/fs-packages"]
+# Download packages from a Typst Universe-style registry (native).
+download = ["archive", "fs-packages", "libtypst/download"]
+# Built-in native HTTPS downloader from typst-kit.
+system-downloader = ["download", "libtypst/system-downloader"]
+# Read and write portable `.typk` Project Pack archives (wasm-safe).
+pack = ["libtypst/pack"]
+# Pre-download verbatim package archives for embedding (native).
+vendor = ["download", "libtypst/vendor"]
+# Opt-in synchronous mid-render package resolution; see ADR 0008.
+lazy-packages = ["libtypst/lazy-packages"]
+
+[dependencies]
+libtypst.workspace = true
+typst-package-source.workspace = true
+
+axum = { version = "0.8", default-features = false, features = ["json"], optional = true }
+dioxus = { version = "0.7", default-features = false, features = ["hooks", "signals"], optional = true }
+serde = { workspace = true, optional = true }
+typst.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Blob",
+    "BlobPropertyBag",
+    "Document",
+    "Element",
+    "HtmlAnchorElement",
+    "HtmlElement",
+    "Node",
+    "Response",
+    "Url",
+    "Window",
+] }
+
+[dev-dependencies]
+bytes = "1"
+dioxus-ssr = "0.7"
+futures-util = { version = "0.3", default-features = false }
+serde_json = "1"
+tempfile.workspace = true
+tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }
+tower = { version = "0.5", features = ["util"] }
+typst-assets = { workspace = true, features = ["fonts"] }

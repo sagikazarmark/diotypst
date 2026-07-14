@@ -1,0 +1,136 @@
+[package]
+name = "demo"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Wasm SPA client: renders in the browser and resolves Typst Universe packages
+# through the same-origin package proxy (the native server or the Worker).
+web = [
+    "dep:diotypst",
+    "dep:dioxus-code",
+    "dep:dioxus-code-editor",
+    "dep:dioxus-sdk-time",
+    "dep:js-sys",
+    "dep:serde_json",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:web-sys",
+    "diotypst/archive",
+    "diotypst/dioxus",
+    "diotypst/html",
+    "diotypst/pack",
+    "diotypst/page-images",
+    "diotypst/pdf",
+    "dioxus/launch",
+    "dioxus/web",
+]
+# Native fullstack server: SSR download pages, the Server Render Route, and
+# the package proxy backed by the built-in downloader.
+server = [
+    "dep:axum",
+    "dep:diotypst",
+    "dep:dioxus-server",
+    "dep:serde",
+    "dep:tokio",
+    "diotypst/bundled-fonts",
+    "diotypst/dioxus",
+    "diotypst/html",
+    "diotypst/pack",
+    "diotypst/page-images",
+    "diotypst/pdf",
+    "diotypst/server",
+    "diotypst/system-downloader",
+    "dioxus/cli-config",
+    "dioxus/fullstack",
+    "dioxus/server",
+]
+# Cloudflare Worker: static assets plus the package proxy route that backs
+# the SPA, sharing the demo package allowlist with the native server.
+worker = ["dep:worker"]
+
+[dependencies]
+# Subject crates. Only the page-rendering targets use diotypst; the Worker
+# shares the package allowlist through typst-package-source without pulling the
+# whole Typst stack into the Worker wasm.
+diotypst = { path = "../crates/diotypst", default-features = false, optional = true }
+typst-package-source = { path = "../crates/typst-package-source" }
+
+# Native fullstack server (SSR + the package proxy and render-download routes).
+axum = { version = "0.8", default-features = false, features = [
+    "form",
+    "http1",
+    "tokio",
+], optional = true }
+
+# Slim base: the rendering pieces the pages need, with the platform/fullstack
+# features layered on per build target below. Kept lightweight so the Worker
+# build (which renders no pages) does not drag in `launch`/`fullstack`.
+dioxus = { version = "0.7", default-features = false, features = [
+    "asset",
+    "document",
+    "hooks",
+    "html",
+    "macro",
+    "router",
+    "signals",
+] }
+
+# Compile-time syntax highlighting (`code!` for the on-page Rust sources,
+# via `macro`) and the runtime Typst source editor. The Worker renders no
+# pages, so they are left out of `worker`.
+dioxus-code = { version = "0.1.2", default-features = false, features = [
+    "lang-json",
+    "lang-typst",
+    "macro",
+    "runtime",
+], optional = true }
+dioxus-code-editor = { version = "0.1.2", default-features = false, optional = true }
+
+# App-side debouncing for live-preview examples: the library's Render Session is
+# declarative (renders whatever signal it is given), so smoothing the keystroke
+# stream is the app's job.
+dioxus-sdk-time = { version = "0.7", optional = true }
+
+dioxus-server = { version = "0.7", optional = true }
+js-sys = { version = "0.3", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+# Client-side validation of the JSON System Inputs example.
+serde_json = { version = "1", optional = true }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+
+# Not used directly: enables the web-sys cargo features (notably `Location`)
+# that `dioxus-web` 0.7 relies on without enabling them itself.
+web-sys = { version = "0.3", features = [
+    "Blob",
+    "Document",
+    "Element",
+    "Location",
+    "Response",
+    "Window",
+], optional = true }
+
+# Cloudflare Worker backend: static assets plus the package proxy route.
+worker = { version = "0.8", optional = true }
+
+[profile.wasm-dev]
+inherits = "dev"
+debug = false
+
+[profile.release]
+opt-level = "z"
+debug = false
+lto = true
+codegen-units = 1
+panic = "abort"
+# Cargo stripping removes the Wasm target features required by wasm-bindgen.
+incremental = false
+
+[workspace]

@@ -1,0 +1,45 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sagikazarmark/diotypst"
+homepage = "https://github.com/sagikazarmark/diotypst"
+
+[workspace.dependencies]
+libtypst = { path = "crates/libtypst", version = "0.1.0", default-features = false }
+typst-package-source = { path = "crates/typst-package-source", version = "0.1.0" }
+
+pollster = "0.4"
+serde = { version = "1", features = ["derive", "rc"] }
+tempfile = "3"
+# The typst crates are one release train: mixed versions fail to compile against
+# each other, so the whole family is pinned to one exact version, in one place.
+typst = "=0.15.0"
+typst-assets = "=0.15.0"
+typst-html = "=0.15.0"
+typst-kit = { version = "=0.15.0", default-features = false }
+typst-layout = "=0.15.0"
+typst-library = "=0.15.0"
+typst-pdf = "=0.15.0"
+typst-render = "=0.15.0"
+typst-syntax = "=0.15.0"
+
+[profile.release]
+opt-level = "z"
+debug = false
+lto = true
+codegen-units = 1
+panic = "abort"
+incremental = false
+
+[workspace.metadata.release]
+sign-commit = true
+sign-tag = true
+shared-version = true
+tag-message = "Release {{version}}"
+tag-name = "v{{version}}"

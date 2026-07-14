@@ -1,0 +1,53 @@
+[package]
+name = "libtypst"
+version.workspace = true
+description = "Building blocks for constructing and rendering Typst worlds from explicit inputs"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["typst", "typesetting", "rendering", "pdf", "wasm"]
+categories = ["compilers", "rendering", "wasm"]
+
+[features]
+default = []
+# Render Capabilities: each format's backend is a feature, so builds carry only the
+# render backends they use. `render_artifact` reports absent backends explicitly.
+pdf = ["dep:typst-layout", "dep:typst-pdf"]
+page-images = ["dep:typst-layout", "dep:typst-render"]
+html = ["dep:typst-html"]
+# Include Typst's standard text, math, and monospace fonts in the binary.
+bundled-fonts = ["typst-kit/embedded-fonts"]
+serde = ["dep:serde", "typst-package-source/serde"]
+# Parse verbatim Typst Universe `.tar.gz` archives into Package Bundles (wasm-safe).
+archive = ["typst-package-source/archive"]
+# Serve unpacked packages from Typst CLI-style package directories (native).
+fs-packages = ["typst-package-source/fs-packages"]
+# Download packages from a Typst Universe-style registry (native).
+download = ["archive", "fs-packages", "typst-package-source/download"]
+# Built-in native HTTPS downloader from typst-kit.
+system-downloader = ["download", "typst-package-source/system-downloader"]
+# Read and write portable `.typk` Project Pack archives (wasm-safe).
+pack = ["dep:typst-pack"]
+# Pre-download verbatim package archives for embedding (native).
+vendor = ["download", "typst-package-source/vendor"]
+# Opt-in synchronous mid-render package resolution; see ADR 0008.
+lazy-packages = []
+
+[dependencies]
+typst-package-source.workspace = true
+
+serde = { workspace = true, optional = true }
+typst.workspace = true
+typst-html = { workspace = true, optional = true }
+typst-kit.workspace = true
+typst-layout = { workspace = true, optional = true }
+typst-pack = { version = "0.1.1", default-features = false, optional = true }
+typst-pdf = { workspace = true, optional = true }
+typst-render = { workspace = true, optional = true }
+
+[dev-dependencies]
+pollster.workspace = true
+tempfile.workspace = true
+typst-assets = { workspace = true, features = ["fonts"] }

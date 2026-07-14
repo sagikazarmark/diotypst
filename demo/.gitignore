@@ -1,0 +1,6 @@
+/.wrangler/
+/build/
+/dist/
+/node_modules/
+/public/fonts/
+/target/
