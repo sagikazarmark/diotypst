@@ -1,2 +1,4 @@
 [["version","1"]]
-["","git.head",["https://github.com/sagikazarmark/daggerverse-beta"],"cbce0956af8cba6565e56ca7b5aaed1e23349b39","float"]
+["","container.from",["docker.io/library/rust:1.97-trixie","linux/arm64"],"sha256:8e117cab45b7e67c5d146456107cd0f8bf87df3a668e5cf142be6984cf900ca0","pin"]
+["","git.head",["https://github.com/sagikazarmark/daggerverse-beta"],"9bae8a11b063eeb5d9a7c45bcf8eb1a7b43fd041","float"]
+["","git.tag",["https://github.com/typst/typst-assets.git","v0.15.0"],"98ed175f2d168f7e42c8a39d20b738a50abe8385","pin"]

@@ -18,22 +18,21 @@ type Demo {
     let cargoRegistryIndexCache = Dagger.cacheVolume("cargo-registry-index")
     let cargoRegistryArchiveCache = Dagger.cacheVolume("cargo-registry-cache")
     let cargoGitDbCache = Dagger.cacheVolume("cargo-git-db")
-    let cargoTargetCache = Dagger.cacheVolume("cargo-target")
 
     self.jsEnv = Dagger.javascriptEnvironment(install: true, locked: true)
     self.dioxus = Dagger.dioxus(
       container: rustContainer,
+      noCache: true, # Disabling target cache: if it gets evicted during a build, the build will fail.
       cargoRegistryIndexCache: cargoRegistryIndexCache,
       cargoRegistryArchiveCache: cargoRegistryArchiveCache,
       cargoGitDbCache: cargoGitDbCache,
-      cargoTargetCache: cargoTargetCache,
     )
     self.workerBuild = Dagger.workerBuild(
       container: rustContainer,
+      noCache: true, # Disabling target cache: if it gets evicted during a build, the build will fail.
       cargoRegistryIndexCache: cargoRegistryIndexCache,
       cargoRegistryArchiveCache: cargoRegistryArchiveCache,
       cargoGitDbCache: cargoGitDbCache,
-      cargoTargetCache: cargoTargetCache,
     )
 
     self
