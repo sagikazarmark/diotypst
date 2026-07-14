@@ -14,7 +14,7 @@ homepage = "https://github.com/sagikazarmark/diotypst"
 libtypst = { path = "crates/libtypst", version = "0.1.0", default-features = false }
 typst-package-source = { path = "crates/typst-package-source", version = "0.1.0" }
 
-pollster = "0.4"
+pollster = "1.0"
 serde = { version = "1", features = ["derive", "rc"] }
 tempfile = "3"
 # The typst crates are one release train: mixed versions fail to compile against
