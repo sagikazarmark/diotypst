@@ -110,7 +110,7 @@ type Demo {
   }
 
   """
-  Build the Dioxus demo application.
+  Build the demo application.
   """
   build(ws: Workspace!): Directory! @check {
     self
@@ -124,7 +124,7 @@ type Demo {
   }
 
   """
-  Serve the Dioxus demo application.
+  Serve the demo application.
   """
   service(ws: Workspace!): Service! @up {
     self.dioxus.serve(self.withAssets(ws), fullstack: true)
@@ -142,7 +142,7 @@ type Worker {
   let parent: Demo!
 
   """
-  Builds the Cloudflare Worker bundle: the static SPA client plus the Worker.
+  Builds the Cloudflare Worker bundle.
   """
   build(ws: Workspace!): Directory! @check {
     let client = parent
@@ -197,15 +197,6 @@ type Worker {
 
   """
   Uploads a preview version of the Worker for a pull request.
-
-  The version is tagged with the short commit hash and aliased as `pr-<number>`.
-  It is not deployed to production.
-
-  The preview URLs are posted as a comment on the pull request (updating the
-  previous comment, if any). A failed comment does not fail the deployment.
-
-  Returns the upload metadata as JSON, which includes the version preview URL
-  and the preview alias URL.
   """
   deployPullRequest(
     ws: Workspace!,
