@@ -11,7 +11,7 @@ use crate::components::{DemoPane, DemoSurface, snippet_theme};
 
 /// The Render Session is declarative: it renders whatever source signal it is
 /// given, whenever that signal changes. The Render Policy is therefore plain
-/// signal wiring — two signals: the editor shows the *live* text, while the
+/// signal wiring with two signals: the editor shows the *live* text, while the
 /// session reads a separate signal that live-preview mode sets through a 400 ms
 /// debounce and explicit mode sets only on Render now. Introduce an error
 /// (delete a closing bracket) to see the stale artifact: the last good render

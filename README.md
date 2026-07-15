@@ -17,18 +17,18 @@ host filesystem or fetches packages implicitly.
 
 ## Features
 
-- **Explicit Project Worlds** — a complete Typst `World` built from an explicit Typst
+- **Explicit Project Worlds**: a complete Typst `World` built from an explicit Typst
   Project and Render Environment; no implicit filesystem or network access mid-render.
-- **Three Render Artifacts** — PDF, Page Images, and semantic HTML, each backend an
+- **Three Render Artifacts**: PDF, Page Images, and semantic HTML, each backend an
   opt-in feature, with structured diagnostics and stale-artifact handling.
-- **Explicit Package Sources** — in-memory bundles, embedded archives, package
+- **Explicit Package Sources**: in-memory bundles, embedded archives, package
   directories, and Typst Universe downloads, composable in chains and gated by an
   allowlist/denylist Package Policy.
-- **Wasm-safe by construction** — the in-memory path (including archive parsing and
+- **Wasm-safe by construction**: the in-memory path (including archive parsing and
   `.typk` Project Packs) compiles for the browser; native-only pieces are features.
-- **Dioxus integration** — the declarative Render Session hook, the `Typst` component,
+- **Dioxus integration**: the declarative Render Session hook, the `Typst` component,
   Render State, and browser downloads.
-- **Fullstack server routes** — the Server Render Route and the policy-gated package
+- **Fullstack server routes**: the Server Render Route and the policy-gated package
   proxy, mountable on any Axum router.
 
 ## Quick Start

@@ -122,8 +122,8 @@ mod hook {
     /// Handle to a Render Session: the declarative flow that keeps one Typst Project
     /// rendered.
     ///
-    /// Because rendering is deterministic — explicit Render Environment, explicit Font
-    /// Set, fixed Render Date — a session is reactive memoization of a pure function:
+    /// Rendering uses an explicit Render Environment, explicit Font Set, and fixed Render
+    /// Date, so it is deterministic; a session is reactive memoization of a pure function:
     /// it renders whenever the Typst Project, the view, or the prepared Render
     /// Environment changes, and never needs an imperative trigger. The Render Policy is
     /// the caller's signal wiring: pass a live signal for always-on rendering, a

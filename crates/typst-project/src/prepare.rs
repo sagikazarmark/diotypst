@@ -81,7 +81,7 @@ impl PackagePreparation {
     /// Return whether the run converged: the final preflight compile observed no missing
     /// packages beyond those already recorded as [`unresolved`](Self::unresolved).
     ///
-    /// A converged run can still carry unresolved specs — they are reported there rather
+    /// A converged run can still carry unresolved specs; they are reported there rather
     /// than blocking convergence. When this is `false`, the iteration cap or a round
     /// without progress stopped the run before it converged.
     pub fn fixed_point(&self) -> bool {

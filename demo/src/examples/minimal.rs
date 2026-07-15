@@ -13,7 +13,7 @@ semantic HTML by one Render Session.
 
 /// The smallest useful render: one Render Session over a Typst Project from
 /// one source string. Rendering is deterministic, so the session is
-/// declarative: it renders on mount and again whenever its input changes —
+/// declarative: it renders on mount and again whenever its input changes;
 /// there is nothing to trigger for a constant source.
 #[component]
 pub fn MinimalExample() -> Element {

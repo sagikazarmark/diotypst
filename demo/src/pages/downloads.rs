@@ -17,7 +17,7 @@ pub fn PdfDownload() -> Element {
             title: "render_download",
             intro: rsx! {
                 InlineCode { "render_download" }
-                " renders on demand and prepares the downloadable bytes in one call — the same Download Action the Server Render Route uses, so client and server downloads produce identical bytes. "
+                " renders on demand and prepares the downloadable bytes in one call: the same Download Action the Server Render Route uses, so client and server downloads produce identical bytes. "
                 InlineCode { "trigger_browser_download" }
                 " hands them to the browser; "
                 InlineCode { "DownloadFile::from_render_artifact_state" }
@@ -44,7 +44,7 @@ pub fn PageImagesDownload() -> Element {
             intro: rsx! {
                 "The archive is assembled client-side from the rendered Page Images; "
                 InlineCode { "DownloadFormat::PageImage" }
-                " would pick a single page instead. HTML has no download format — asking "
+                " would pick a single page instead. HTML has no download format; asking "
                 InlineCode { "DownloadFile" }
                 " for an HTML artifact yields "
                 InlineCode { "DownloadError::UnsupportedArtifact" }

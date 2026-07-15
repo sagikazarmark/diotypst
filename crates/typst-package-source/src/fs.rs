@@ -2,7 +2,7 @@
 //!
 //! [`FsPackages`] serves unpacked packages from one Typst CLI-style package
 //! directory (`namespace/name/version` subdirectories); [`SystemPackages`] is
-//! typst-kit's full CLI resolution chain — data directory, then cache directory,
+//! typst-kit's full CLI resolution chain: data directory, then cache directory,
 //! then a Typst Universe download stored into the cache. Resolving either as a
 //! Package Source eagerly reads the package's files into an in-memory
 //! [`PackageBundle`].

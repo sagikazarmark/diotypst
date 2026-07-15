@@ -15,7 +15,7 @@ pub const PACKAGE_ARCHIVE_CACHE_CONTROL: &str = "public, max-age=31536000, immut
 /// Adapters (an axum router, a fetch-based handler on a serverless host) do the IO
 /// between these steps: parse the path, check the Package Policy, fetch the upstream
 /// URL, and serve the bytes with the archive header constants. Everything
-/// security-relevant — spec validation, policy enforcement, URL construction — lives
+/// security-relevant, including spec validation, policy enforcement, and URL construction, lives
 /// here, once.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProxyArchiveRequest {

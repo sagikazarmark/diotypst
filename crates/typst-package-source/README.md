@@ -6,13 +6,13 @@
 **Explicit, policy-gated Typst package resolution: the Package Source seam, in-memory
 bundles, registries, and archives.**
 
-Packages resolve ahead of rendering — never implicitly mid-compile — through the async
+Packages resolve ahead of rendering, never implicitly mid-compile, through the async
 `PackageSource` trait (with `Send` futures on native targets and non-`Send` futures on
 wasm) or its synchronous sibling `SyncPackageSource`. Sources compose in ordered chains,
 and any source can be gated by a serializable `PackagePolicy` allowlist/denylist.
 
-The base build depends only on `typst-syntax`, so package tooling — registries, proxies,
-vendoring, CI, serverless workers — compiles without the Typst compiler or any render
+The base build depends only on `typst-syntax`, so package tooling, including registries,
+proxies, vendoring, CI, and serverless workers, compiles without the Typst compiler or any render
 backend, including on wasm.
 
 ## Install
@@ -65,7 +65,7 @@ let resolved = source.resolve_sync(&"@preview/example:1.0.0".parse().expect("spe
 - `FsPackages` (feature `fs-packages`, implemented directly on the typst-kit type):
   unpacked packages from a Typst CLI-style package directory.
 - `SystemPackages` (feature `fs-packages`, typst-kit): the full Typst CLI resolution
-  chain — data directory, cache directory, Universe download — as one source.
+  chain as one source: data directory, cache directory, Universe download.
 - `RegistryPackages` (feature `download`): verbatim archive downloads from Typst Universe
   or a mirror through a typst-kit `Downloader`, with an optional `FsPackages` cache and
   typst-cli-style `VersionNotFound` diagnostics from the package index.
@@ -76,7 +76,7 @@ let resolved = source.resolve_sync(&"@preview/example:1.0.0".parse().expect("spe
 
 `ProxyArchiveRequest` is the transport-free core of a package proxy: archive-name parsing
 through Typst's own spec validation, Package Policy enforcement, upstream URL
-construction, and the response header constants. Adapters do the IO — an axum router
+construction, and the response header constants. Adapters do the IO: an axum router
 (see `diotypst`) or a fetch-based serverless handler build on the same core.
 
 ## Related Crates

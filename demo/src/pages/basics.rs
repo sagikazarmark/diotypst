@@ -87,7 +87,7 @@ pub fn Minimal() -> Element {
                 InlineCode { "use_render_session" }
                 " keeps the latest Render Artifact, Stale Artifacts, and diagnostics in one "
                 InlineCode { "HeadlessRender" }
-                " state. The session is declarative: it renders on mount and re-renders whenever the input it reads changes. For a constant source there is nothing to trigger — rendering is deterministic, so re-rendering unchanged input would produce the same artifact."
+                " state. The session is declarative: it renders on mount and re-renders whenever the input it reads changes. For a constant source there is nothing to trigger; rendering is deterministic, so re-rendering unchanged input would produce the same artifact."
             },
             demo: rsx! { MinimalExample {} },
             code: rsx! {

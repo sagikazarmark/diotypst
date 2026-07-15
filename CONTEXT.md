@@ -57,11 +57,11 @@ The latest successful Render Artifact shown while the current Typst Project has 
 _Avoid_: Current preview, hidden failure
 
 **Render Policy**:
-The app-level rule that decides when a Typst Project should be rendered, realized as signal wiring: the value that reaches a Render Session's input — committed on an explicit user action, or debounced from a live editing stream — is what renders. It is not a library scheduling mechanism.
+The app-level rule that decides when a Typst Project should be rendered, realized as signal wiring: the value that reaches a Render Session's input, whether committed on an explicit user action or debounced from a live editing stream, is what renders. It is not a library scheduling mechanism.
 _Avoid_: Hidden rerendering, feeding raw keystrokes to a Render Session, debouncing the signal the editor widget displays
 
 **Render Session** (`RenderSession`):
-The declarative flow that keeps one Typst Project rendered: World Preparation and Render State behind one handle. Because rendering is deterministic, a session is reactive memoization of a pure function — it renders synchronously on mount and re-renders whenever its Typst Project, view, or Render Environment changes; preparation enrichment re-renders with the resolved Package Bundles. There is no imperative render trigger.
+The declarative flow that keeps one Typst Project rendered: World Preparation and Render State behind one handle. Because rendering is deterministic, a session is reactive memoization of a pure function: it renders synchronously on mount and re-renders whenever its Typst Project, view, or Render Environment changes; preparation enrichment re-renders with the resolved Package Bundles. There is no imperative render trigger.
 _Avoid_: Ambient render loop, hidden rerendering, imperative render triggers, hand-chained preparation and render hooks
 
 **Render Capability**:

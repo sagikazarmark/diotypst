@@ -126,7 +126,7 @@ pub fn render_html_world(world: &dyn World) -> Result<HtmlArtifact, RenderError>
 /// Render a Typst Project to the selected Render Artifact format.
 ///
 /// Formats whose backend is not part of this build (see the `pdf`, `page-images`, and
-/// `html` features) report [`RenderError::UnsupportedFormat`] — a Render Capability is
+/// `html` features) report [`RenderError::UnsupportedFormat`]; a Render Capability is
 /// never silently substituted.
 #[cfg_attr(
     not(any(feature = "pdf", feature = "page-images", feature = "html")),

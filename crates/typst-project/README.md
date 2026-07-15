@@ -56,8 +56,8 @@ Use `SandboxedWorld::builder(project, environment).html().build()` when the worl
 
 ## Render Capabilities
 
-Each Render Artifact format's backend is an opt-in feature — `pdf`, `page-images`, and
-`html` — so builds carry only the render backends they use. The typed functions
+Each Render Artifact format's backend is an opt-in feature: `pdf`, `page-images`, and
+`html`, so builds carry only the render backends they use. The typed functions
 (`render_pdf`, …) exist only with their feature; `render_artifact` stays available on every
 build and reports an absent backend as an explicit `RenderError::UnsupportedFormat`, never a
 silent fallback.
@@ -69,9 +69,9 @@ construction, and land in the Render Environment as in-memory Package Bundles. R
 fetches. Sources compose in ordered chains and can be gated by an allowlist/denylist
 `PackagePolicy`.
 
-The whole package layer lives in the [`typst-package-source`] crate — a typst-syntax-tier
+The whole package layer lives in the [`typst-package-source`] crate, a typst-syntax-tier
 dependency, so package tooling (registries, proxies, vendoring, serverless workers) compiles
-without the Typst compiler — and is re-exported here in full:
+without the Typst compiler, and is re-exported here in full:
 
 [`typst-package-source`]: https://crates.io/crates/typst-package-source
 
@@ -102,8 +102,8 @@ Available sources:
 - `FsPackages` (feature `fs-packages`, re-exported from typst-kit): unpacked packages from a
   Typst CLI-style package directory, including the system data and cache directories.
 - `SystemPackages` (feature `fs-packages`, re-exported from typst-kit): the full Typst CLI
-  resolution chain — data directory, then cache directory, then a Typst Universe download
-  stored into the cache — as one source.
+  resolution chain as one source: data directory, then cache directory, then a Typst Universe
+  download stored into the cache.
 - `RegistryPackages` (feature `download`): download from Typst Universe or a mirror through a
   typst-kit `Downloader`, optionally retaining downloads in an `FsPackages` cache. Missing
   versions of known packages report `VersionNotFound` with the latest version from the package

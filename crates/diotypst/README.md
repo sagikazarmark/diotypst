@@ -40,7 +40,7 @@ assert!(pdf.bytes().starts_with(b"%PDF-"));
   its feature docs.
 - `bundled-fonts`: include Typst's standard text, math, and monospace fonts. Omit it
   when the application provides an explicit `FontSet` at runtime.
-- `dioxus`: the Dioxus-facing render API — Render Sessions, the `Typst` component, and
+- `dioxus`: the Dioxus-facing render API: Render Sessions, the `Typst` component, and
   `TypstProvider`.
 - `serde`: serializable projects, environments, and Package Policies.
 - `server`: the Axum-compatible Server Render Route and package proxy router.
@@ -373,14 +373,14 @@ Packs whose dependencies are not all vendored report them through `ProjectPack::
 
 ## Dioxus And Server Flows
 
-Render Capabilities are opt-in features forwarded to typst-project — `pdf`, `page-images`, and
-`html` — so an HTML-preview wasm build can omit the PDF exporter and the raster renderer;
+Render Capabilities are opt-in features forwarded to typst-project: `pdf`, `page-images`, and
+`html`, so an HTML-preview wasm build can omit the PDF exporter and the raster renderer;
 requesting an absent capability is an explicit `RenderError::UnsupportedFormat`, never a
 silent fallback.
 
 Enable the `dioxus` feature to use the Dioxus-facing render API. `use_render_session` is the main entry point, and it is declarative: because rendering is deterministic (explicit Render Environment, explicit Font Set, fixed Render Date), a Render Session is reactive memoization of a pure function. It renders synchronously on mount, re-renders whenever the Typst Project, view, or Render Environment it is given changes, runs World Preparation through the configured Package Source (degrading to missing-package diagnostics instead of blocking, then re-rendering when the resolved Package Bundles land), and retains the last good artifact as a Stale Artifact when newer source has errors.
 
-The Render Policy is the caller's signal wiring — the session renders whatever value reaches it, so the app decides what reaches it: pass a signal committed on a button press for explicit rendering, or a debounced signal (for example [`dioxus-sdk-time`](https://crates.io/crates/dioxus-sdk-time)'s `use_debounce`) for live preview. Keep the *live* signal on the editor widget and feed the session the committed or debounced one; rendering is synchronous CPU work, so avoid raw keystrokes for non-trivial documents. `TypstProvider` supplies shared defaults (Render Environment, Package Source), each overridable per session through `RenderSessionOptions`. The high-level `Typst` component is a thin view over a session, and `use_typst_render` remains the lower escape hatch for rendering custom Complete Typst Worlds.
+The Render Policy is the caller's signal wiring: the session renders whatever value reaches it, so the app decides what reaches it. Pass a signal committed on a button press for explicit rendering, or a debounced signal (for example [`dioxus-sdk-time`](https://crates.io/crates/dioxus-sdk-time)'s `use_debounce`) for live preview. Keep the *live* signal on the editor widget and feed the session the committed or debounced one; rendering is synchronous CPU work, so avoid raw keystrokes for non-trivial documents. `TypstProvider` supplies shared defaults (Render Environment, Package Source), each overridable per session through `RenderSessionOptions`. The high-level `Typst` component is a thin view over a session, and `use_typst_render` remains the lower escape hatch for rendering custom Complete Typst Worlds.
 
 ```rust,ignore
 use dioxus::prelude::*;

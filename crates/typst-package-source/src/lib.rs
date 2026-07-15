@@ -3,10 +3,10 @@
 //! This crate owns the Package Source seam and everything that satisfies it: in-memory
 //! Package Bundles, policy gating, source chains, verbatim Typst Universe `.tar.gz`
 //! archives, Typst CLI-style package directories, and registry downloads. Packages
-//! resolve ahead of rendering, during World Preparation — never implicitly mid-compile.
+//! resolve ahead of rendering, during World Preparation, never implicitly mid-compile.
 //!
 //! The base build depends only on `typst-syntax`, so package tooling (registries,
-//! proxies, vendoring, CI) compiles without the Typst compiler or render backends —
+//! proxies, vendoring, CI) compiles without the Typst compiler or render backends,
 //! including on wasm. The filesystem and download sources layer in through features.
 
 #[cfg(feature = "archive")]
