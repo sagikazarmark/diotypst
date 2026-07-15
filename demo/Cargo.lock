@@ -1035,10 +1035,10 @@ dependencies = [
  "axum",
  "dioxus",
  "js-sys",
- "libtypst",
  "serde",
  "typst",
  "typst-package-source",
+ "typst-project",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -3061,21 +3061,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c943259e342f1e06ff2da7a83eabdfe7f92ce10262688dbf1895ff0b3e6e4652"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "libtypst"
-version = "0.1.0"
-dependencies = [
- "serde",
- "typst",
- "typst-html",
- "typst-kit",
- "typst-layout",
- "typst-pack",
- "typst-package-source",
- "typst-pdf",
- "typst-render",
 ]
 
 [[package]]
@@ -5672,6 +5657,21 @@ dependencies = [
  "typst-syntax",
  "typst-timing",
  "typst-utils",
+]
+
+[[package]]
+name = "typst-project"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "typst",
+ "typst-html",
+ "typst-kit",
+ "typst-layout",
+ "typst-pack",
+ "typst-package-source",
+ "typst-pdf",
+ "typst-render",
 ]
 
 [[package]]

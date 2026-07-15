@@ -36,7 +36,7 @@ assert!(pdf.bytes().starts_with(b"%PDF-"));
 
 ## Feature Flags
 
-- `pdf`, `page-images`, `html`: opt-in Render Capabilities, forwarded to libtypst; see
+- `pdf`, `page-images`, `html`: opt-in Render Capabilities, forwarded to typst-project; see
   its feature docs.
 - `bundled-fonts`: include Typst's standard text, math, and monospace fonts. Omit it
   when the application provides an explicit `FontSet` at runtime.
@@ -373,7 +373,7 @@ Packs whose dependencies are not all vendored report them through `ProjectPack::
 
 ## Dioxus And Server Flows
 
-Render Capabilities are opt-in features forwarded to libtypst — `pdf`, `page-images`, and
+Render Capabilities are opt-in features forwarded to typst-project — `pdf`, `page-images`, and
 `html` — so an HTML-preview wasm build can omit the PDF exporter and the raster renderer;
 requesting an absent capability is an explicit `RenderError::UnsupportedFormat`, never a
 silent fallback.
@@ -440,13 +440,13 @@ dx serve --features server
 
 ## Related Crates
 
-- [`libtypst`](https://crates.io/crates/libtypst): the Dioxus-independent core that
+- [`typst-project`](https://crates.io/crates/typst-project): the Dioxus-independent core that
   constructs Project Worlds from explicit Typst Projects, Package Bundles, Font Sets,
   and render dates, and renders them to artifacts. `diotypst` depends on it and
   re-exports its API so Dioxus-facing flows can keep using one import path.
 - [`typst-package-source`](https://crates.io/crates/typst-package-source): the
   package-acquisition tier (Package Sources, Bundles, and Policies), re-exported
-  through `libtypst`.
+  through `typst-project`.
 
 See the [workspace README](https://github.com/sagikazarmark/diotypst) for the full
 documentation, design terminology, and live examples.

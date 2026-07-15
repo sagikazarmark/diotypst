@@ -1,9 +1,9 @@
-# libtypst
+# typst-project
 
-[![crates.io](https://img.shields.io/crates/v/libtypst?style=flat-square)](https://crates.io/crates/libtypst)
-[![docs.rs](https://img.shields.io/docsrs/libtypst?style=flat-square)](https://docs.rs/libtypst)
+[![crates.io](https://img.shields.io/crates/v/typst-project?style=flat-square)](https://crates.io/crates/typst-project)
+[![docs.rs](https://img.shields.io/docsrs/typst-project?style=flat-square)](https://docs.rs/typst-project)
 
-**Building blocks for constructing and rendering Typst worlds from explicit inputs.**
+**Explicit Typst projects, worlds, and rendering across native and wasm targets.**
 
 This crate owns the target-agnostic path from an explicit Typst Project and Render Environment to a complete Typst `World` and its Render Artifacts (PDF, Page Images, semantic HTML), including diagnostics and the package preparation loop. It does not read host files or fetch packages implicitly during Typst world lookup. It extends [typst-kit](https://docs.rs/typst-kit) with the explicit, in-memory, wasm-safe path that closed-world and in-browser rendering need.
 
@@ -11,13 +11,13 @@ This crate owns the target-agnostic path from an explicit Typst Project and Rend
 
 ```toml
 [dependencies]
-libtypst = "0.1"
+typst-project = "0.1"
 ```
 
 ## Quick Start
 
 ```rust
-use libtypst::{SandboxedWorld, RenderEnvironment, DocumentWorkspace};
+use typst_project::{DocumentWorkspace, RenderEnvironment, SandboxedWorld};
 
 let project = DocumentWorkspace::from_source("= Hello");
 let environment = RenderEnvironment::builder()
@@ -76,7 +76,7 @@ without the Typst compiler — and is re-exported here in full:
 [`typst-package-source`]: https://crates.io/crates/typst-package-source
 
 ```rust
-use libtypst::{
+use typst_project::{
     GatedPackages, MemoryPackages, PackageBundle, PackagePolicy, SyncPackageSource,
 };
 
@@ -126,7 +126,7 @@ converts straight into this crate's domain types:
 ```rust
 # #[cfg(feature = "pack")]
 # {
-use libtypst::{ProjectPack, DocumentWorkspace};
+use typst_project::{DocumentWorkspace, ProjectPack};
 
 let pack = ProjectPack::builder(DocumentWorkspace::from_source("= Portable"))
     .build()
@@ -151,15 +151,15 @@ packages listed in `external_packages` must still be resolved through a Package 
 Overlays shadow exact resources before delegating unresolved requests to the base world. Workspace files match by workspace path, package bundles match by exact package spec, and overlay render dates only affect calls through that overlay.
 
 ```rust
-use libtypst::{SandboxedWorld, WorldOverlay};
+use typst_project::{SandboxedWorld, WorldOverlay};
 
-# let project = libtypst::DocumentWorkspace::from_source("Base");
-# let environment = libtypst::RenderEnvironment::builder().build().unwrap();
+# let project = typst_project::DocumentWorkspace::from_source("Base");
+# let environment = typst_project::RenderEnvironment::builder().build().unwrap();
 # let base = SandboxedWorld::new(project, environment).unwrap();
 let overlay = WorldOverlay::new(base)
     .source_file("preview.typ", "Overlay main")?
     .main("preview.typ")?;
-# Ok::<_, libtypst::WorkspaceValidationError>(())
+# Ok::<_, typst_project::WorkspaceValidationError>(())
 ```
 
 ## Related Crates
@@ -167,7 +167,7 @@ let overlay = WorldOverlay::new(base)
 - [`typst-package-source`](https://crates.io/crates/typst-package-source): the
   package-acquisition tier, re-exported here in full.
 - [`diotypst`](https://crates.io/crates/diotypst): the Dioxus-facing crate built on this
-  one; it re-exports the whole `libtypst` API.
+  one; it re-exports the whole `typst-project` API.
 
 See the [workspace README](https://github.com/sagikazarmark/diotypst) for the full
 documentation, design terminology, and live examples.

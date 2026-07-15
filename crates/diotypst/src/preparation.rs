@@ -1,6 +1,6 @@
 //! Dioxus-owned World Preparation state for package resolution.
 
-use libtypst::{PackageResolveError, PackageSpec, RenderEnvironment, RenderError};
+use typst_project::{PackageResolveError, PackageSpec, RenderEnvironment, RenderError};
 
 /// Status of one package inside a World Preparation run.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -156,8 +156,8 @@ impl WorldPreparationState {
     }
 
     /// Apply one [`PrepareEvent`](crate::PrepareEvent) from the preparation loop to this state.
-    pub fn apply_prepare_event(&mut self, event: libtypst::PrepareEvent<'_>) {
-        use libtypst::PrepareEvent;
+    pub fn apply_prepare_event(&mut self, event: typst_project::PrepareEvent<'_>) {
+        use typst_project::PrepareEvent;
 
         match event {
             PrepareEvent::PreflightStarted { .. } => {}
@@ -189,8 +189,8 @@ impl WorldPreparationState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libtypst::PrepareEvent;
     use std::str::FromStr;
+    use typst_project::PrepareEvent;
 
     fn spec(text: &str) -> PackageSpec {
         PackageSpec::from_str(text).expect("test spec should parse")

@@ -21,8 +21,8 @@ impl SharedPackageSource {
 impl PackageSource for SharedPackageSource {
     fn resolve<'a>(
         &'a self,
-        spec: &'a libtypst::PackageSpec,
-    ) -> libtypst::PackageResolveFuture<'a> {
+        spec: &'a typst_project::PackageSpec,
+    ) -> typst_project::PackageResolveFuture<'a> {
         self.0.resolve(spec)
     }
 }
@@ -58,7 +58,7 @@ impl TypstProviderDefaults {
 
     /// Share a Package Source for World Preparation with provider consumers.
     ///
-    /// Wrap the source in [`GatedPackages`](libtypst::GatedPackages) to apply a Package
+    /// Wrap the source in [`GatedPackages`](typst_project::GatedPackages) to apply a Package
     /// Policy before sharing it.
     pub fn with_package_source(mut self, package_source: SharedPackageSource) -> Self {
         self.package_source = Some(package_source);

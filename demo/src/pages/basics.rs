@@ -65,7 +65,7 @@ pub fn Home() -> Element {
                 "Repository & docs",
                 "https://github.com/sagikazarmark/diotypst",
             )),
-            "The workspace is split into libtypst (Dioxus-independent Project World construction) and diotypst (render hooks, components, downloads, package preparation, and the fullstack server routes). Design terminology lives in CONTEXT.md."
+            "The workspace is split into typst-project (Dioxus-independent Project World construction) and diotypst (render hooks, components, downloads, package preparation, and the fullstack server routes). Design terminology lives in CONTEXT.md."
         }
     }
 }

@@ -83,8 +83,8 @@ construction, and the response header constants. Adapters do the IO — an axum 
 
 This crate is the package-acquisition tier of the
 [diotypst](https://github.com/sagikazarmark/diotypst) workspace:
-`typst-package-source` (typst-syntax tier) → `libtypst` (worlds and rendering) →
-`diotypst` (Dioxus integration). `libtypst` re-exports this crate's entire surface, so
+`typst-package-source` (typst-syntax tier) → `typst-project` (worlds and rendering) →
+`diotypst` (Dioxus integration). `typst-project` re-exports this crate's entire surface, so
 its consumers never need a direct dependency.
 
 ## License
