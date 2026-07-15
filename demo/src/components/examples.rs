@@ -50,27 +50,36 @@ pub fn ExampleSection(
 
     let body = match layout {
         ExampleLayout::Tabbed => rsx! {
-            div { role: "tablist", class: "mt-6 tabs tabs-border",
+            div { role: "group", "aria-label": "Example view", class: "mt-6 tabs tabs-border",
                 button {
-                    role: "tab",
+                    r#type: "button",
                     class: if tab() == SectionTab::Demo { "tab tab-active" } else { "tab" },
-                    "aria-selected": tab() == SectionTab::Demo,
+                    "aria-pressed": tab() == SectionTab::Demo,
                     onclick: move |_| tab.set(SectionTab::Demo),
                     "Demo"
                 }
                 button {
-                    role: "tab",
+                    r#type: "button",
                     class: if tab() == SectionTab::Source { "tab tab-active" } else { "tab" },
-                    "aria-selected": tab() == SectionTab::Source,
+                    "aria-pressed": tab() == SectionTab::Source,
                     onclick: move |_| tab.set(SectionTab::Source),
                     "Source"
                 }
             }
             // Both panes stay mounted and toggle visibility so switching to
-            // the source and back never unmounts the demo (which would reset
-            // editor text, downloads, and render-session state).
-            div { class: if tab() == SectionTab::Demo { "mt-4" } else { "mt-4 hidden" }, {demo_frame} }
-            div { class: if tab() == SectionTab::Source { "mt-4" } else { "mt-4 hidden" }, {code_frame} }
+            // the source and back never unmounts the interactive demo.
+            div {
+                role: "region",
+                "aria-label": "Example demo",
+                class: if tab() == SectionTab::Demo { "mt-4" } else { "mt-4 hidden" },
+                {demo_frame}
+            }
+            div {
+                role: "region",
+                "aria-label": "Example source",
+                class: if tab() == SectionTab::Source { "mt-4" } else { "mt-4 hidden" },
+                {code_frame}
+            }
         },
         ExampleLayout::Columns => rsx! {
             div { class: "mt-6 grid gap-6 xl:grid-cols-2",

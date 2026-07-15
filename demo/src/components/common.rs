@@ -42,7 +42,7 @@ pub fn DocsCallout(
     rsx! {
         div { class: "mt-8 rounded-2xl border border-info/40 bg-info/5 p-5",
             div { class: "flex items-center gap-2",
-                span { class: "text-lg", "📄" }
+                span { class: "text-sm font-semibold uppercase tracking-wider text-info", "Docs" }
                 p { class: "font-semibold text-base-content", "{title}" }
             }
             div { class: "mt-2 max-w-[70ch] text-sm leading-6 text-base-content/70", {children} }
@@ -69,11 +69,15 @@ pub fn StatusLine(#[props(into)] status: String) -> Element {
         return rsx! {};
     }
     rsx! {
-        p { class: "mt-3 rounded-lg bg-base-100 px-3 py-2 text-sm text-base-content/75", "{status}" }
+        p {
+            role: "status",
+            class: "mt-3 rounded-lg bg-base-100 px-3 py-2 text-sm text-base-content/75",
+            "{status}"
+        }
     }
 }
 
-/// Small status chip used next to previews and package lists.
+/// Small status chip used next to previews and state panels.
 #[component]
 pub fn StatusChip(#[props(into)] label: String) -> Element {
     rsx! {
