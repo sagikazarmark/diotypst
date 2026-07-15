@@ -11,7 +11,7 @@ repository = "https://github.com/sagikazarmark/diotypst"
 homepage = "https://github.com/sagikazarmark/diotypst"
 
 [workspace.dependencies]
-libtypst = { path = "crates/libtypst", version = "0.1.0", default-features = false }
+typst-project = { path = "crates/typst-project", version = "0.1.0", default-features = false }
 typst-package-source = { path = "crates/typst-package-source", version = "0.1.0" }
 
 pollster = "1.0"

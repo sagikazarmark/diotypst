@@ -30,12 +30,12 @@ pub enum PackageArchiveFetchError {
     Failed(String),
 }
 
-/// A [`PackageArchiveFetcher`] backed by a typst-kit [`Downloader`](libtypst::Downloader).
+/// A [`PackageArchiveFetcher`] backed by a typst-kit [`Downloader`](typst_project::Downloader).
 #[cfg(all(feature = "server", feature = "download"))]
 pub struct DownloaderArchiveFetcher<D>(pub D);
 
 #[cfg(all(feature = "server", feature = "download"))]
-impl<D: libtypst::Downloader> PackageArchiveFetcher for DownloaderArchiveFetcher<D> {
+impl<D: typst_project::Downloader> PackageArchiveFetcher for DownloaderArchiveFetcher<D> {
     fn fetch(&self, spec: &PackageSpec, url: &str) -> Result<Vec<u8>, PackageArchiveFetchError> {
         self.0
             .download(spec, url)
@@ -68,7 +68,7 @@ impl PackageProxyConfig {
     pub fn new(policy: PackagePolicy) -> Self {
         Self {
             policy,
-            upstream_base_url: libtypst::UNIVERSE_REGISTRY_URL.to_owned(),
+            upstream_base_url: typst_project::UNIVERSE_REGISTRY_URL.to_owned(),
             cache_dir: None,
         }
     }
@@ -192,9 +192,9 @@ fn archive_response(bytes: Vec<u8>) -> axum::response::Response {
 #[cfg(all(test, feature = "server"))]
 mod router_tests {
     use super::*;
-    use libtypst::PackagePattern;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
+    use typst_project::PackagePattern;
 
     /// A fetcher serving one fixture archive, recording calls.
     struct StubFetcher {

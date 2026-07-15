@@ -24,58 +24,6 @@ pub use import::{
     FileImportError, FileImportOptions, ImportedFileKind, ImportedProjectFile,
     import_project_files, is_font_file, partition_imported_fonts, project_path_from_import,
 };
-#[cfg(feature = "archive")]
-pub use libtypst::PackageArchiveError;
-#[cfg(feature = "system-downloader")]
-pub use libtypst::SystemDownloader;
-pub use libtypst::{
-    DocumentWorkspace, DocumentWorkspaceBuilder, VirtualPath, WorkspaceFile,
-    WorkspaceValidationError,
-};
-#[cfg(feature = "download")]
-pub use libtypst::{
-    Downloader, Progress, ProgressDownloader, ProgressReporter, RegistryPackages,
-    UNIVERSE_NAMESPACE, download_package_archive,
-};
-pub use libtypst::{
-    FontSet, RenderDate, RenderEnvironment, RenderEnvironmentBuilder, RenderEnvironmentError,
-};
-#[cfg(feature = "fs-packages")]
-pub use libtypst::{FsPackages, SystemPackages};
-pub use libtypst::{
-    GatedPackages, MaybeSendSync, MemoryPackages, MemoryPackagesError, PackageResolveError,
-    PackageResolveFuture, PackageSource, PackageSourceChain, SyncAdapter, SyncPackageSource,
-    SyncPackageSourceChain, UNIVERSE_REGISTRY_URL, package_archive_url,
-};
-pub use libtypst::{
-    HtmlArtifact, PageImage, PageImageOptions, PageImagesArtifact, PdfArtifact, RenderArtifact,
-    RenderFormat,
-};
-#[cfg(feature = "pack")]
-pub use libtypst::{
-    PROJECT_PACK_EXTENSION, ProjectPack, ProjectPackBuilder, ProjectPackError, ProjectPackMetadata,
-};
-pub use libtypst::{PackageBundle, PackageBundleBuilder, PackageBundleError, PackageSpec};
-pub use libtypst::{
-    PackageDependencyObservation, PackageDependencyTarget, RenderError,
-    observe_package_dependencies, observe_package_dependencies_world, render_artifact,
-    render_artifact_world,
-};
-pub use libtypst::{PackagePattern, PackagePatternError, PackagePolicy};
-pub use libtypst::{
-    PackagePreparation, PrepareEvent, PreparePackagesOptions, prepare_packages,
-    prepare_packages_with_progress,
-};
-pub use libtypst::{RenderDiagnostic, RenderSourceIdentity, RenderSourceRange};
-pub use libtypst::{SandboxedWorld, SandboxedWorldBuilder, WorldOverlay};
-#[cfg(feature = "vendor")]
-pub use libtypst::{VendorError, vendor_package_archives};
-#[cfg(feature = "html")]
-pub use libtypst::{render_html, render_html_world};
-#[cfg(feature = "page-images")]
-pub use libtypst::{render_page_images, render_page_images_world};
-#[cfg(feature = "pdf")]
-pub use libtypst::{render_pdf, render_pdf_world};
 #[cfg(all(feature = "server", feature = "download"))]
 pub use package_proxy::DownloaderArchiveFetcher;
 pub use package_proxy::{
@@ -108,6 +56,58 @@ pub use server::{
 #[cfg(feature = "dioxus")]
 pub use session::{RenderSession, use_render_session};
 pub use session::{RenderSessionOptions, TypstInput, TypstView};
+#[cfg(feature = "archive")]
+pub use typst_project::PackageArchiveError;
+#[cfg(feature = "system-downloader")]
+pub use typst_project::SystemDownloader;
+pub use typst_project::{
+    DocumentWorkspace, DocumentWorkspaceBuilder, VirtualPath, WorkspaceFile,
+    WorkspaceValidationError,
+};
+#[cfg(feature = "download")]
+pub use typst_project::{
+    Downloader, Progress, ProgressDownloader, ProgressReporter, RegistryPackages,
+    UNIVERSE_NAMESPACE, download_package_archive,
+};
+pub use typst_project::{
+    FontSet, RenderDate, RenderEnvironment, RenderEnvironmentBuilder, RenderEnvironmentError,
+};
+#[cfg(feature = "fs-packages")]
+pub use typst_project::{FsPackages, SystemPackages};
+pub use typst_project::{
+    GatedPackages, MaybeSendSync, MemoryPackages, MemoryPackagesError, PackageResolveError,
+    PackageResolveFuture, PackageSource, PackageSourceChain, SyncAdapter, SyncPackageSource,
+    SyncPackageSourceChain, UNIVERSE_REGISTRY_URL, package_archive_url,
+};
+pub use typst_project::{
+    HtmlArtifact, PageImage, PageImageOptions, PageImagesArtifact, PdfArtifact, RenderArtifact,
+    RenderFormat,
+};
+#[cfg(feature = "pack")]
+pub use typst_project::{
+    PROJECT_PACK_EXTENSION, ProjectPack, ProjectPackBuilder, ProjectPackError, ProjectPackMetadata,
+};
+pub use typst_project::{PackageBundle, PackageBundleBuilder, PackageBundleError, PackageSpec};
+pub use typst_project::{
+    PackageDependencyObservation, PackageDependencyTarget, RenderError,
+    observe_package_dependencies, observe_package_dependencies_world, render_artifact,
+    render_artifact_world,
+};
+pub use typst_project::{PackagePattern, PackagePatternError, PackagePolicy};
+pub use typst_project::{
+    PackagePreparation, PrepareEvent, PreparePackagesOptions, prepare_packages,
+    prepare_packages_with_progress,
+};
+pub use typst_project::{RenderDiagnostic, RenderSourceIdentity, RenderSourceRange};
+pub use typst_project::{SandboxedWorld, SandboxedWorldBuilder, WorldOverlay};
+#[cfg(feature = "vendor")]
+pub use typst_project::{VendorError, vendor_package_archives};
+#[cfg(feature = "html")]
+pub use typst_project::{render_html, render_html_world};
+#[cfg(feature = "page-images")]
+pub use typst_project::{render_page_images, render_page_images_world};
+#[cfg(feature = "pdf")]
+pub use typst_project::{render_pdf, render_pdf_world};
 
 // This integration-style suite assumes every render backend and bundled fonts.
 #[cfg(all(

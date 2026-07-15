@@ -12,31 +12,31 @@ categories = ["gui", "wasm", "web-programming"]
 
 [features]
 default = []
-# Render Capabilities, forwarded to libtypst; see its feature docs.
-pdf = ["libtypst/pdf"]
-page-images = ["libtypst/page-images"]
-html = ["libtypst/html"]
-bundled-fonts = ["libtypst/bundled-fonts"]
+# Render Capabilities, forwarded to typst-project; see its feature docs.
+pdf = ["typst-project/pdf"]
+page-images = ["typst-project/page-images"]
+html = ["typst-project/html"]
+bundled-fonts = ["typst-project/bundled-fonts"]
 dioxus = ["dep:dioxus", "dioxus/html", "dioxus/macro"]
-serde = ["dep:serde", "libtypst/serde"]
+serde = ["dep:serde", "typst-project/serde"]
 server = ["dep:axum", "serde"]
 # Parse verbatim Typst Universe `.tar.gz` archives into Package Bundles (wasm-safe).
-archive = ["libtypst/archive"]
+archive = ["typst-project/archive"]
 # Serve unpacked packages from Typst CLI-style package directories (native).
-fs-packages = ["libtypst/fs-packages"]
+fs-packages = ["typst-project/fs-packages"]
 # Download packages from a Typst Universe-style registry (native).
-download = ["archive", "fs-packages", "libtypst/download"]
+download = ["archive", "fs-packages", "typst-project/download"]
 # Built-in native HTTPS downloader from typst-kit.
-system-downloader = ["download", "libtypst/system-downloader"]
+system-downloader = ["download", "typst-project/system-downloader"]
 # Read and write portable `.typk` Project Pack archives (wasm-safe).
-pack = ["libtypst/pack"]
+pack = ["typst-project/pack"]
 # Pre-download verbatim package archives for embedding (native).
-vendor = ["download", "libtypst/vendor"]
+vendor = ["download", "typst-project/vendor"]
 # Opt-in synchronous mid-render package resolution; see ADR 0008.
-lazy-packages = ["libtypst/lazy-packages"]
+lazy-packages = ["typst-project/lazy-packages"]
 
 [dependencies]
-libtypst.workspace = true
+typst-project.workspace = true
 typst-package-source.workspace = true
 
 axum = { version = "0.8", default-features = false, features = ["json"], optional = true }

@@ -1,7 +1,7 @@
 [package]
-name = "libtypst"
+name = "typst-project"
 version.workspace = true
-description = "Building blocks for constructing and rendering Typst worlds from explicit inputs"
+description = "Explicit Typst projects, worlds, and rendering across native and wasm targets"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

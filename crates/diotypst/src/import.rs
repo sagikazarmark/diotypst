@@ -206,7 +206,7 @@ pub fn is_font_file(path: &str, content_type: Option<&str>, bytes: &[u8]) -> boo
 /// Split imported font files out for Font Set construction.
 ///
 /// Returns the remaining Project Files and the font file bytes, typically passed to
-/// [`FontSet::with_font_files`](libtypst::FontSet::with_font_files).
+/// [`FontSet::with_font_files`](typst_project::FontSet::with_font_files).
 pub fn partition_imported_fonts(
     files: Vec<ImportedProjectFile>,
 ) -> (Vec<ImportedProjectFile>, Vec<Vec<u8>>) {
