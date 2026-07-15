@@ -16,12 +16,18 @@ where
     R: Routable + PartialEq,
 {
     let current = use_route::<R>();
-    let class = if active.unwrap_or(current == route) {
+    let is_active = active.unwrap_or(current == route);
+    let class = if is_active {
         format!("{class} bg-primary/10 font-semibold text-primary")
     } else {
         class
     };
     rsx! {
-        Link { to: route, class: "{class}", "{label}" }
+        Link {
+            to: route,
+            class: "{class}",
+            "aria-current": is_active.then_some("page"),
+            "{label}"
+        }
     }
 }

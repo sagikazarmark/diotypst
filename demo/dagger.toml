@@ -1,5 +1,3 @@
-ignore = [".devenv", ".wrangler", "dist", "node_modules", "target"]
-
 [modules.demo]
 source = "."
 entrypoint = true

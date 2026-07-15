@@ -160,7 +160,7 @@ fn DemoLayout() -> Element {
                         SidebarNavLink { route: Route::ServerRendering {}, label: "Server rendering" }
                     }
                 }
-                main { class: "min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-0 lg:py-12",
+                main { id: "main-content", class: "min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-0 lg:py-12",
                     Outlet::<Route> {}
                 }
             }
@@ -170,6 +170,8 @@ fn DemoLayout() -> Element {
                     a {
                         class: "hover:text-base-content",
                         href: "https://github.com/sagikazarmark/diotypst",
+                        target: "_blank",
+                        rel: "noopener noreferrer",
                         "Repository"
                     }
                 },

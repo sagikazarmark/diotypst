@@ -7,6 +7,18 @@ macro from [`dioxus-code`](https://crates.io/crates/dioxus-code)), so the snippe
 is guaranteed to be the code you see running. The whole app deploys as a Cloudflare Worker
 serving the static SPA plus the package proxy.
 
+## Structure
+
+- `src/app.rs`: router, Typst provider, and the branded application shell.
+- `src/components{.rs,/...}`: shared gallery presentation plus the
+  Typst-specific file picker controls.
+- `src/pages{.rs,/...}`: route components grouped by navigation section.
+- `src/examples{.rs,/...}`: focused examples mounted live and quoted with
+  `code!`.
+- `src/main.rs`: browser entry point and the native Axum server.
+- `src/worker.rs` / `src/lib.rs`: Cloudflare Worker package proxy entry point.
+- `src/packages.rs`: package policy shared by the native and Worker backends.
+
 ## Build targets
 
 The crate builds for three targets via Cargo features:
@@ -14,7 +26,7 @@ The crate builds for three targets via Cargo features:
 | Feature | What it is |
 | --- | --- |
 | `web` | Wasm SPA client; resolves packages through the same-origin package proxy. |
-| `server` | Native fullstack server: serves the SPA, the Server Render Route, and the package proxy. |
+| `server` | Native server: serves the SPA, the Server Render Route, and the package proxy. |
 | `worker` | Cloudflare Worker `cdylib`; static assets plus the package proxy route. |
 
 Cloudflare Workers can't run the native package proxy (its downloader does not compile for
@@ -45,27 +57,36 @@ PDF and Page Image Archive downloads.
 
 ## Prerequisites
 
-The app runs with the [Dioxus CLI](https://dioxuslabs.com/learn/0.7/getting_started/)
-and uses npm for the Tailwind toolchain:
+The root devenv shell supplies Rust 1.97, the `wasm32-unknown-unknown` target,
+npm, Dagger, and a wasm-capable LLVM Clang. Install Dioxus CLI 0.7.9 separately;
+without devenv, install the other equivalent tools as well. Apple Clang cannot
+compile the `code!` highlighter for `wasm32-unknown-unknown`.
 
 ```sh
-cargo install dioxus-cli               # if needed
-npm install                            # once, for the Tailwind toolchain
+rustup target add wasm32-unknown-unknown
+cargo install dioxus-cli --version 0.7.9 --locked
+# Install Dagger to generate the demo fonts and use the containerized workflows.
 ```
 
 ## Run locally
 
 ```sh
+cd demo
+npm ci
 dagger call fonts export --path ./public/fonts  # once, and after Typst upgrades
-npm run build                          # compile assets/style.css (or: npm run watch)
-dx serve --features server             # native fullstack server
-dx serve --features web                # SPA only (package proxy and server routes unavailable)
+npm run build                          # compile build/style.css
+dx serve --fullstack \
+  @client --platform web --no-default-features --features web \
+  @server --platform server --no-default-features --features server
 ```
 
 `build/style.css` and `public/fonts/` are generated and git-ignored. Dagger exports the
 standard fonts from the pinned `typst-assets` tag; npm compiles Tailwind + daisyUI. Run both
-asset commands before the first `dx serve`, and rerun `npm run build` after editing RSX
-classes (`npm run watch` rebuilds styles on change).
+asset commands before the first `dx serve`. Rerun `npm run build` after editing RSX classes,
+or keep `npm run watch` running in another terminal.
+
+To run only the browser SPA, use `dx serve --platform web --no-default-features --features web`.
+The package proxy and server download routes are unavailable in that mode.
 
 ## Run with Dagger
 
@@ -73,6 +94,7 @@ classes (`npm run watch` rebuilds styles on change).
 or Wrangler needed:
 
 ```sh
+cd demo
 dagger check                # release builds of BOTH the native fullstack app and the Worker
 dagger call service up      # native fullstack, tunnelled to a local port
 dagger call worker dev up   # Cloudflare Worker via `wrangler dev`
@@ -81,6 +103,7 @@ dagger call worker dev up   # Cloudflare Worker via `wrangler dev`
 To deploy the Worker, pass the Cloudflare credentials explicitly:
 
 ```sh
+cd demo
 dagger call worker deploy \
   --account-id "$CLOUDFLARE_ACCOUNT_ID" \
   --api-token env://CLOUDFLARE_API_TOKEN
@@ -95,11 +118,12 @@ secrets.
 ## Verify
 
 ```sh
+cd demo
 # Shared allowlist rules.
 cargo test
 # Support helpers (native).
 cargo test --features server
-# Wasm SPA client (needs assets/style.css, see above).
+# Wasm SPA client (needs build/style.css, see above).
 cargo check --no-default-features --features web --target wasm32-unknown-unknown
 # Native fullstack server.
 cargo check --no-default-features --features server
