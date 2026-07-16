@@ -3385,14 +3385,13 @@ dependencies = [
 
 [[package]]
 name = "typst-pack"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19f39b772a29661dcaecc2173c47d55d3f1ad9b2b90ca6b8bf7b8c76f3e862bd"
+checksum = "fd3e2b8282a8a55bf294dcb25113aa23424c4a950133e2fb613e1303882d549f"
 dependencies = [
  "ecow",
  "serde",
  "thiserror",
- "tiny-skia",
  "toml 1.1.3+spec-1.1.0",
  "typst",
  "typst-html",
