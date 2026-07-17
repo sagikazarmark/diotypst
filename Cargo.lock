@@ -2979,9 +2979,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.52.3"
+version = "1.52.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe"
+checksum = "317fafbbe3f02fc663dad00ea6186197de963cd4190e86a26d8d0fae095539af"
 dependencies = [
  "pin-project-lite",
  "tokio-macros",
@@ -3385,14 +3385,13 @@ dependencies = [
 
 [[package]]
 name = "typst-pack"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19f39b772a29661dcaecc2173c47d55d3f1ad9b2b90ca6b8bf7b8c76f3e862bd"
+checksum = "fd3e2b8282a8a55bf294dcb25113aa23424c4a950133e2fb613e1303882d549f"
 dependencies = [
  "ecow",
  "serde",
  "thiserror",
- "tiny-skia",
  "toml 1.1.3+spec-1.1.0",
  "typst",
  "typst-html",
