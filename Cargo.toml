@@ -20,14 +20,14 @@ tempfile = "3"
 # The typst crates are one release train: mixed versions fail to compile against
 # each other, so the whole family is pinned to one exact version, in one place.
 typst = "=0.15.0"
-typst-assets = "=0.15.0"
+typst-assets = "=0.15.1"
 typst-html = "=0.15.0"
 typst-kit = { version = "=0.15.0", default-features = false }
 typst-layout = "=0.15.0"
 typst-library = "=0.15.0"
 typst-pdf = "=0.15.0"
 typst-render = "=0.15.0"
-typst-syntax = "=0.15.0"
+typst-syntax = "=0.15.1"
 
 [profile.release]
 opt-level = "z"
