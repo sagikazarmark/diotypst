@@ -1,5 +1,5 @@
 type Demo {
-  let jsEnv: JavascriptEnvironment!
+  let node: NodeEnvironment!
   let dioxus: Dioxus!
   let workerBuild: WorkerBuild!
 
@@ -19,7 +19,7 @@ type Demo {
     let cargoRegistryArchiveCache = Dagger.cacheVolume("cargo-registry-cache")
     let cargoGitDbCache = Dagger.cacheVolume("cargo-git-db")
 
-    self.jsEnv = Dagger.javascriptEnvironment(install: true, locked: true)
+    self.node = Dagger.nodeEnvironment(install: true, locked: true)
     self.dioxus = Dagger.dioxus(
       container: rustContainer,
       noCache: true, # Disabling target cache: if it gets evicted during a build, the build will fail.
@@ -57,27 +57,25 @@ type Demo {
       .tag("v0.15.0")
       .tree
       .directory("files/fonts")
-      .filter(
-        include: [
-          "LibertinusSerif-Regular.otf",
-          "LibertinusSerif-Bold.otf",
-          "LibertinusSerif-Italic.otf",
-          "LibertinusSerif-BoldItalic.otf",
-          "LibertinusSerif-Semibold.otf",
-          "LibertinusSerif-SemiboldItalic.otf",
-          "NewCMMath-Bold.otf",
-          "NewCMMath-Book.otf",
-          "NewCMMath-Regular.otf",
-          "NewCM10-Regular.otf",
-          "NewCM10-Bold.otf",
-          "NewCM10-Italic.otf",
-          "NewCM10-BoldItalic.otf",
-          "DejaVuSansMono-Bold.ttf",
-          "DejaVuSansMono-BoldOblique.ttf",
-          "DejaVuSansMono-Oblique.ttf",
-          "DejaVuSansMono.ttf",
-        ],
-      )
+      .filter(include: [
+        "LibertinusSerif-Regular.otf",
+        "LibertinusSerif-Bold.otf",
+        "LibertinusSerif-Italic.otf",
+        "LibertinusSerif-BoldItalic.otf",
+        "LibertinusSerif-Semibold.otf",
+        "LibertinusSerif-SemiboldItalic.otf",
+        "NewCMMath-Bold.otf",
+        "NewCMMath-Book.otf",
+        "NewCMMath-Regular.otf",
+        "NewCM10-Regular.otf",
+        "NewCM10-Bold.otf",
+        "NewCM10-Italic.otf",
+        "NewCM10-BoldItalic.otf",
+        "DejaVuSansMono-Bold.ttf",
+        "DejaVuSansMono-BoldOblique.ttf",
+        "DejaVuSansMono-Oblique.ttf",
+        "DejaVuSansMono.ttf",
+      ])
   }
 
   """
@@ -85,28 +83,23 @@ type Demo {
   """
   style(ws: Workspace!): File! {
     self
-      .jsEnv
+      .node
       .container(ws)
-      .withExec(["npm", "exec", "--", "tailwindcss", "-i", "src/style.css", "-o", "build/style.css", "--minify"])
-      .file("build/style.css")
+      .withExec(["npm", "exec", "--", "tailwindcss", "-i", "src/style.css", "-o", "style.css", "--minify"])
+      .file("style.css")
   }
 
   let withAssets(ws: Workspace!): Workspace! {
-    # DAGGER_TODO: need better way to pass module outputs to other modules
-    let dir = ws
-      .directory("/", gitignore: true)
-      .withDirectory(ws.cwd, self.assets(ws))
-
     # DAGGER_TODO:
     # generated assets are normally ignored by git, so adding them back causes
     # them to be ignored next time workspace is called
-    dir = dir
+    ws
       .withNewFile(
-        ws.cwd + "/.gitignore",
-        dir.file(ws.cwd + "/.gitignore").contents + "\n" + ["!/build/style.css", "!/public/fonts/"].join("\n"),
+        ".gitignore",
+        ws.file(".gitignore").contents + "\n" + ["!/build/style.css", "!/public/fonts/"].join("\n"),
       )
-
-    dir.asWorkspace(ws.cwd)
+      .withNewDirectory("build", self.assets(ws).directory("build"))
+      .withNewDirectory("public", self.assets(ws).directory("public"))
   }
 
   """

@@ -380,7 +380,7 @@ silent fallback.
 
 Enable the `dioxus` feature to use the Dioxus-facing render API. `use_render_session` is the main entry point, and it is declarative: because rendering is deterministic (explicit Render Environment, explicit Font Set, fixed Render Date), a Render Session is reactive memoization of a pure function. It renders synchronously on mount, re-renders whenever the Typst Project, view, or Render Environment it is given changes, runs World Preparation through the configured Package Source (degrading to missing-package diagnostics instead of blocking, then re-rendering when the resolved Package Bundles land), and retains the last good artifact as a Stale Artifact when newer source has errors.
 
-The Render Policy is the caller's signal wiring: the session renders whatever value reaches it, so the app decides what reaches it. Pass a signal committed on a button press for explicit rendering, or a debounced signal (for example [`dioxus-sdk-time`](https://crates.io/crates/dioxus-sdk-time)'s `use_debounce`) for live preview. Keep the *live* signal on the editor widget and feed the session the committed or debounced one; rendering is synchronous CPU work, so avoid raw keystrokes for non-trivial documents. `TypstProvider` supplies shared defaults (Render Environment, Package Source), each overridable per session through `RenderSessionOptions`. The high-level `Typst` component is a thin view over a session, and `use_typst_render` remains the lower escape hatch for rendering custom Complete Typst Worlds.
+The Render Policy is the caller's signal wiring: the session renders whatever value reaches it, so the app decides what reaches it. Pass a signal committed on a button press for explicit rendering, or a debounced signal (for example [`dioxus-sdk-time`](https://crates.io/crates/dioxus-sdk-time)'s `use_debounce`) for live preview. Keep the _live_ signal on the editor widget and feed the session the committed or debounced one; rendering is synchronous CPU work, so avoid raw keystrokes for non-trivial documents. `TypstProvider` supplies shared defaults (Render Environment, Package Source), each overridable per session through `RenderSessionOptions`. The high-level `Typst` component is a thin view over a session, and `use_typst_render` remains the lower escape hatch for rendering custom Complete Typst Worlds.
 
 ```rust,ignore
 use dioxus::prelude::*;
@@ -455,8 +455,8 @@ documentation, design terminology, and live examples.
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 

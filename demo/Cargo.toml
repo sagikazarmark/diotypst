@@ -131,7 +131,7 @@ debug = false
 lto = true
 codegen-units = 1
 panic = "abort"
-# Cargo stripping removes the Wasm target features required by wasm-bindgen.
+# wasm-bindgen needs the target_features section when generating Worker catch wrappers.
 strip = false
 incremental = false
 
