@@ -23,7 +23,8 @@ pub use environment::{
 pub use fonts::FontSet;
 #[cfg(feature = "pack")]
 pub use pack::{
-    PROJECT_PACK_EXTENSION, ProjectPack, ProjectPackBuilder, ProjectPackError, ProjectPackMetadata,
+    ExternalPackageRequirement, PROJECT_PACK_EXTENSION, ProjectPack, ProjectPackBuilder,
+    ProjectPackError, ProjectPackMetadata,
 };
 pub use prepare::{
     PackagePreparation, PrepareEvent, PreparePackagesOptions, prepare_packages,

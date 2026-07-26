@@ -120,8 +120,8 @@ live in `diotypst`); `SyncPackageSource` additionally supports the opt-in
 The `pack` feature (wasm-safe) reads and writes Project Packs: single-file `.typk` archives of a
 whole Typst Project defined by the independent
 [`typst-pack`](https://github.com/sagikazarmark/typst-pack) crate. A pack carries the project
-files, vendored Package Bundles, external package specs, and optional embedded font files, so it
-converts straight into this crate's domain types:
+files, vendored Package Bundles, exact external package-tree requirements, and optional embedded
+font files, so it converts straight into this crate's domain types:
 
 ```rust
 # #[cfg(feature = "pack")]
@@ -144,7 +144,13 @@ assert_eq!(pack.project().root_path().get_without_slash(), "main.typ");
 ```
 
 `ProjectPack::render_environment` installs the vendored Package Bundles and embedded fonts;
-packages listed in `external_packages` must still be resolved through a Package Source.
+if `external_packages` is not empty, it refuses to produce a render-ready environment. Start
+Package Source resolution from `ProjectPack::preparation_environment`, then pass the resolved
+bundles to `ProjectPack::render_environment_with_external_packages` for exact tree verification.
+When creating such a requirement, pass the complete package tree to
+`ProjectPackBuilder::external_package_bundle`; its files establish the required tree identity but
+are not stored in the pack. Packs that require external font containers or an embedded font-face
+catalog that the Font Set cannot represent are rejected.
 
 ## Overlays
 

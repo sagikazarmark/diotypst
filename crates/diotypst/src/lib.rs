@@ -69,6 +69,11 @@ pub use typst_project::{
     Downloader, Progress, ProgressDownloader, ProgressReporter, RegistryPackages,
     UNIVERSE_NAMESPACE, download_package_archive,
 };
+#[cfg(feature = "pack")]
+pub use typst_project::{
+    ExternalPackageRequirement, PROJECT_PACK_EXTENSION, ProjectPack, ProjectPackBuilder,
+    ProjectPackError, ProjectPackMetadata,
+};
 pub use typst_project::{
     FontSet, RenderDate, RenderEnvironment, RenderEnvironmentBuilder, RenderEnvironmentError,
 };
@@ -82,10 +87,6 @@ pub use typst_project::{
 pub use typst_project::{
     HtmlArtifact, PageImage, PageImageOptions, PageImagesArtifact, PdfArtifact, RenderArtifact,
     RenderFormat,
-};
-#[cfg(feature = "pack")]
-pub use typst_project::{
-    PROJECT_PACK_EXTENSION, ProjectPack, ProjectPackBuilder, ProjectPackError, ProjectPackMetadata,
 };
 pub use typst_project::{PackageBundle, PackageBundleBuilder, PackageBundleError, PackageSpec};
 pub use typst_project::{
