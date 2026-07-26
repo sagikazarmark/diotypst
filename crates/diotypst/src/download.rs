@@ -9,6 +9,7 @@ use crate::{
 /// and Page Images can be requested as one page or as a Page Image Archive.
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum DownloadFormat {
     /// PDF download output.
     Pdf,

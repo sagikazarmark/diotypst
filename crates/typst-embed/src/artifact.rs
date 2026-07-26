@@ -1,5 +1,6 @@
 /// A selectable Render Artifact format.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum RenderFormat {
     /// PDF output.
     Pdf,

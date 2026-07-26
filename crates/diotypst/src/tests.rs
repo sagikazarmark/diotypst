@@ -2001,7 +2001,7 @@ fn render_headless(
     let builder = environment.world_builder(project.clone());
     let builder = match format {
         RenderFormat::Html => builder.html(),
-        RenderFormat::Pdf | RenderFormat::PageImages(_) => builder,
+        _ => builder,
     };
     let world = builder.build().expect("Project World should be valid");
     renderer.render_world(&world, format);
