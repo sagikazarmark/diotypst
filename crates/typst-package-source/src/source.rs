@@ -79,7 +79,7 @@ impl<S: PackageSource + ?Sized> PackageSource for Arc<S> {
 
 /// A Package Source that can resolve synchronously.
 ///
-/// Synchronous sources back the opt-in lazy package resolution seam (see ADR 0008) in
+/// Synchronous sources back the opt-in lazy package resolution seam in
 /// addition to World Preparation. They are `Send + Sync` on every target because a lazily
 /// resolving world stores its source and `typst::World` itself requires `Send + Sync`.
 pub trait SyncPackageSource: Send + Sync {

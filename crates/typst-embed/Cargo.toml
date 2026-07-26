@@ -32,7 +32,9 @@ system-downloader = ["download", "typst-package-source/system-downloader"]
 pack = ["dep:typst-pack"]
 # Pre-download verbatim package archives for embedding (native).
 vendor = ["download", "typst-package-source/vendor"]
-# Opt-in synchronous mid-render package resolution; see ADR 0008.
+# Opt-in synchronous mid-render package resolution: the explicit exception to the
+# closed-world default, where a native Project World may reach a Package Source
+# during Typst world lookup. Off by default.
 lazy-packages = []
 
 [dependencies]

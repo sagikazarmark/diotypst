@@ -11,7 +11,9 @@ keywords = ["typst", "dioxus", "typesetting", "pdf", "wasm"]
 categories = ["gui", "wasm", "web-programming"]
 
 [features]
-default = []
+# The Dioxus integration is the point of this crate, so it is on by default.
+# Server-only builds of a fullstack app opt out with `default-features = false`.
+default = ["dioxus"]
 # Render Capabilities, forwarded to typst-embed; see its feature docs.
 pdf = ["typst-embed/pdf"]
 page-images = ["typst-embed/page-images"]
@@ -32,7 +34,9 @@ system-downloader = ["download", "typst-embed/system-downloader"]
 pack = ["typst-embed/pack"]
 # Pre-download verbatim package archives for embedding (native).
 vendor = ["download", "typst-embed/vendor"]
-# Opt-in synchronous mid-render package resolution; see ADR 0008.
+# Opt-in synchronous mid-render package resolution: the explicit exception to the
+# closed-world default, where a native Project World may reach a Package Source
+# during Typst world lookup. Off by default.
 lazy-packages = ["typst-embed/lazy-packages"]
 
 [dependencies]

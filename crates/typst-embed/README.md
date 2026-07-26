@@ -51,7 +51,9 @@ the file store without rebuilding prepared environment resources.
 - `system-downloader` (native): the built-in native HTTPS downloader from typst-kit.
 - `pack` (wasm-safe): read and write portable `.typk` Project Pack archives.
 - `vendor` (native): pre-download verbatim package archives for embedding.
-- `lazy-packages`: opt-in synchronous mid-render package resolution; see ADR 0008.
+- `lazy-packages`: opt-in synchronous mid-render package resolution. Off by default: it
+  lets a native Project World reach a Package Source during Typst world lookup, which
+  relaxes the "no implicit I/O mid-render" guarantee the rest of the crate holds.
 
 ## Domain Model
 
@@ -119,7 +121,7 @@ Available sources:
 
 The async `PackageSource` trait is the World Preparation seam (browser fetch implementations
 live in `diotypst`); `SyncPackageSource` additionally supports the opt-in
-`lazy-packages` mid-render resolution described in ADR 0008.
+`lazy-packages` mid-render resolution.
 
 ## Project Packs
 

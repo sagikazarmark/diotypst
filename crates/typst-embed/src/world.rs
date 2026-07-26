@@ -103,8 +103,9 @@ impl ProjectWorldBuilder {
 
     /// Resolve packages missing from the Render Environment synchronously during rendering.
     ///
-    /// This is the explicit opt-in exception to the closed-world rendering default; see
-    /// ADR 0008. Resolution goes through the given synchronous Package Source on the first
+    /// This is the explicit opt-in exception to the closed-world rendering default:
+    /// everywhere else, packages resolve during World Preparation, before the world exists.
+    /// Resolution goes through the given synchronous Package Source on the first
     /// file request into a missing package; wrap the source in
     /// [`GatedPackages`](crate::GatedPackages) to apply a Package Policy. Failures are cached
     /// per spec for the lifetime of the world.

@@ -40,8 +40,9 @@ assert!(pdf.bytes().starts_with(b"%PDF-"));
   its feature docs.
 - `bundled-fonts`: include Typst's standard text, math, and monospace fonts. Omit it
   when the application provides an explicit `FontSet` at runtime.
-- `dioxus`: the Dioxus-facing render API: Render Sessions, the `Typst` component, and
-  `TypstProvider`.
+- `dioxus` (default): the Dioxus-facing render API: Render Sessions, the `Typst`
+  component, and `TypstProvider`. Turn it off with `default-features = false` for
+  server-only or non-Dioxus builds.
 - `serde`: serializable projects, environments, and Package Policies.
 - `server`: the Axum-compatible Server Render Route and package proxy router.
 - `archive` (wasm-safe): parse verbatim Typst Universe `.tar.gz` archives into Package
@@ -52,7 +53,9 @@ assert!(pdf.bytes().starts_with(b"%PDF-"));
 - `system-downloader` (native): the built-in native HTTPS downloader from typst-kit.
 - `pack` (wasm-safe): read and write portable `.typk` Project Pack archives.
 - `vendor` (native): pre-download verbatim package archives for embedding.
-- `lazy-packages`: opt-in synchronous mid-render package resolution; see ADR 0008.
+- `lazy-packages`: opt-in synchronous mid-render package resolution. Off by default: it
+  lets a native Project World reach a Package Source during Typst world lookup, which
+  relaxes the "no implicit I/O mid-render" guarantee the rest of the crate holds.
 
 ## Stable Flows
 

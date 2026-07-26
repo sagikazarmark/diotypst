@@ -37,7 +37,7 @@ Add the flagship crate with the capabilities your Dioxus app needs:
 
 ```toml
 [dependencies]
-diotypst = { version = "0.1", features = ["bundled-fonts", "dioxus", "html"] }
+diotypst = { version = "0.1", features = ["bundled-fonts", "html"] }
 ```
 
 See the [`diotypst` Quick Start](crates/diotypst/README.md#quick-start) for a complete
