@@ -1,7 +1,7 @@
 [package]
-name = "typst-project"
+name = "typst-embed"
 version.workspace = true
-description = "Explicit Typst projects, worlds, and rendering across native and wasm targets"
+description = "Embed Typst in an application: explicit projects, worlds, and rendering across native and wasm targets"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

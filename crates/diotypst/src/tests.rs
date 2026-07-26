@@ -43,7 +43,7 @@ fn readme_keeps_render_constraints_visible() {
 }
 
 #[test]
-fn typst_project_alias_builds_the_existing_project_model() {
+fn typst_embed_alias_builds_the_existing_project_model() {
     let project = Project::from_source("= Title");
     let environment = RenderEnvironment::builder()
         .build()

@@ -1,9 +1,9 @@
-# typst-project
+# typst-embed
 
-[![crates.io](https://img.shields.io/crates/v/typst-project?style=flat-square)](https://crates.io/crates/typst-project)
-[![docs.rs](https://img.shields.io/docsrs/typst-project?style=flat-square)](https://docs.rs/typst-project)
+[![crates.io](https://img.shields.io/crates/v/typst-embed?style=flat-square)](https://crates.io/crates/typst-embed)
+[![docs.rs](https://img.shields.io/docsrs/typst-embed?style=flat-square)](https://docs.rs/typst-embed)
 
-**Explicit Typst projects, worlds, and rendering across native and wasm targets.**
+**Embed Typst in an application: explicit projects, worlds, and rendering across native and wasm targets.**
 
 This crate owns the target-agnostic path from an explicit Typst Project and Render Environment to a complete Typst `World` and its Render Artifacts (PDF, Page Images, semantic HTML), including diagnostics and the package preparation loop. It does not read host files or fetch packages implicitly during Typst world lookup. It extends [typst-kit](https://docs.rs/typst-kit) with the explicit, in-memory, wasm-safe path that closed-world and in-browser rendering need.
 
@@ -11,13 +11,13 @@ This crate owns the target-agnostic path from an explicit Typst Project and Rend
 
 ```toml
 [dependencies]
-typst-project = "0.1"
+typst-embed = "0.1"
 ```
 
 ## Quick Start
 
 ```rust
-use typst_project::{Project, RenderEnvironment};
+use typst_embed::{Project, RenderEnvironment};
 
 let project = Project::from_source("= Hello");
 let environment = RenderEnvironment::builder()
@@ -82,7 +82,7 @@ without the Typst compiler, and is re-exported here in full:
 [`typst-package-source`]: https://crates.io/crates/typst-package-source
 
 ```rust
-use typst_project::{
+use typst_embed::{
     GatedPackages, MemoryPackages, PackageBundle, PackagePolicy, SyncPackageSource,
 };
 
@@ -132,7 +132,7 @@ converts straight into this crate's domain types:
 ```rust
 # #[cfg(feature = "pack")]
 # {
-use typst_project::{Project, ProjectPack};
+use typst_embed::{Project, ProjectPack};
 
 let pack = ProjectPack::builder(Project::from_source("= Portable"))
     .build()
@@ -165,15 +165,15 @@ without storing their bytes in the archive.
 Overlays shadow exact resources before delegating unresolved requests to the base world. Project files match by project path, package bundles match by exact package spec, and overlay render dates only affect calls through that overlay.
 
 ```rust
-use typst_project::{ProjectWorld, WorldOverlay};
+use typst_embed::{ProjectWorld, WorldOverlay};
 
-# let project = typst_project::Project::from_source("Base");
-# let environment = typst_project::RenderEnvironment::builder().build().unwrap();
+# let project = typst_embed::Project::from_source("Base");
+# let environment = typst_embed::RenderEnvironment::builder().build().unwrap();
 # let base = ProjectWorld::new(project, environment).unwrap();
 let overlay = WorldOverlay::new(base)
     .source_file("preview.typ", "Overlay main")?
     .main("preview.typ")?;
-# Ok::<_, typst_project::ProjectValidationError>(())
+# Ok::<_, typst_embed::ProjectValidationError>(())
 ```
 
 ## Related Crates
@@ -181,7 +181,7 @@ let overlay = WorldOverlay::new(base)
 - [`typst-package-source`](https://crates.io/crates/typst-package-source): the
   package-acquisition tier, re-exported here in full.
 - [`diotypst`](https://crates.io/crates/diotypst): the Dioxus-facing crate built on this
-  one; it re-exports the whole `typst-project` API.
+  one; it re-exports the whole `typst-embed` API.
 
 See the [workspace README](https://github.com/sagikazarmark/diotypst) for the full
 documentation, design terminology, and live examples.
