@@ -12,13 +12,12 @@ use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Feature, Features, Library, LibraryExt, World};
 use typst_kit::files::{FileLoader, FileStore};
-use typst_kit::fonts::FontStore;
 
 /// A crate-owned Complete Typst World built from an explicit Typst Project.
 pub struct SandboxedWorld {
     files: FileStore<ExplicitFileLoader>,
     library: LazyHash<Library>,
-    fonts: FontStore,
+    fonts: FontSet,
     main: FileId,
     render_date: RenderDate,
 }
@@ -108,7 +107,8 @@ impl SandboxedWorldBuilder {
         self.workspace.validate()?;
 
         // Lazy typst-kit font store: face metadata now, full fonts on first use.
-        let fonts = self.environment.font_set().font_store();
+        let fonts = self.environment.font_set().clone();
+        let _ = fonts.font_store();
         let main = file_id_for_workspace_path(self.workspace.root_path());
         let render_date = self.environment.render_date();
         let library = LazyHash::new(
@@ -142,7 +142,7 @@ impl World for SandboxedWorld {
     }
 
     fn book(&self) -> &LazyHash<FontBook> {
-        self.fonts.book()
+        self.fonts.font_store().book()
     }
 
     fn main(&self) -> FileId {
@@ -158,7 +158,7 @@ impl World for SandboxedWorld {
     }
 
     fn font(&self, index: usize) -> Option<Font> {
-        self.fonts.font(index)
+        self.fonts.font_store().font(index)
     }
 
     fn today(&self, _offset: Option<Duration>) -> Option<Datetime> {
@@ -410,9 +410,8 @@ impl<W> WorldOverlay<W> {
 
     /// Replace the base world's Font Set for rendering through this overlay.
     pub fn replace_font_set(mut self, font_set: FontSet) -> Self {
-        self.font_set = OverlayFontSet::Replace {
-            store: font_set.font_store(),
-        };
+        let _ = font_set.font_store();
+        self.font_set = OverlayFontSet::Replace { font_set };
 
         self
     }
@@ -439,7 +438,7 @@ impl<W> WorldOverlay<W> {
 
         self.font_set = OverlayFontSet::Extend {
             book: LazyHash::new(book),
-            store,
+            font_set,
             overlay_count,
         };
 
@@ -508,11 +507,11 @@ struct OverlayFile {
 enum OverlayFontSet {
     Inherit,
     Replace {
-        store: FontStore,
+        font_set: FontSet,
     },
     Extend {
         book: LazyHash<FontBook>,
-        store: FontStore,
+        font_set: FontSet,
         overlay_count: usize,
     },
 }
@@ -528,7 +527,7 @@ where
     fn book(&self) -> &LazyHash<FontBook> {
         match &self.font_set {
             OverlayFontSet::Inherit => self.base.book(),
-            OverlayFontSet::Replace { store } => store.book(),
+            OverlayFontSet::Replace { font_set } => font_set.font_store().book(),
             OverlayFontSet::Extend { book, .. } => book,
         }
     }
@@ -580,14 +579,14 @@ where
     fn font(&self, index: usize) -> Option<Font> {
         match &self.font_set {
             OverlayFontSet::Inherit => self.base.font(index),
-            OverlayFontSet::Replace { store } => store.font(index),
+            OverlayFontSet::Replace { font_set } => font_set.font_store().font(index),
             OverlayFontSet::Extend {
-                store,
+                font_set,
                 overlay_count,
                 ..
             } => {
                 if index < *overlay_count {
-                    store.font(index)
+                    font_set.font_store().font(index)
                 } else {
                     self.base.font(index - overlay_count)
                 }

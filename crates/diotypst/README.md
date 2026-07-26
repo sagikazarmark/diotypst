@@ -5,7 +5,7 @@
 
 **Typst integration primitives for Dioxus apps.**
 
-Rendering is explicit end to end: a Typst Project (root entrypoint plus explicit files) renders inside an explicit Render Environment (Package Bundles, Font Set, render date, System Inputs) through a crate-owned Project World. Nothing reads the host filesystem or fetches packages implicitly.
+Rendering is explicit end to end: a reusable Render Environment supplies Package Bundles, Font Set, render date, and System Inputs; combining it with a Typst Project produces a Complete Project World consumed by the rendering layer. Nothing reads the host filesystem or fetches packages implicitly.
 
 ## Install
 
@@ -236,14 +236,12 @@ assert!(images
 
 ### Render A Complete Typst World
 
-Use the raw world helpers when the application already owns a complete Typst `World`, or when it wants to construct a `SandboxedWorld` and apply explicit overlays before rendering.
+Use the raw world helpers when the application already owns a complete Typst `World`, or when it wants to derive one from a reusable Render Environment and apply explicit overlays before rendering.
 
 ```rust
 # #[cfg(all(feature = "bundled-fonts", feature = "html"))]
 # {
-use diotypst::{
-    render_html_world, SandboxedWorld, RenderEnvironment, DocumentWorkspace, WorldOverlay,
-};
+use diotypst::{render_html_world, RenderEnvironment, DocumentWorkspace, WorldOverlay};
 
 let project = DocumentWorkspace::builder("main.typ")
     .source_file("main.typ", "#include \"content.typ\"")
@@ -253,7 +251,7 @@ let project = DocumentWorkspace::builder("main.typ")
 let environment = RenderEnvironment::builder()
     .build()
     .expect("render environment should be valid");
-let base_world = SandboxedWorld::for_html(project, environment)
+let base_world = environment.world_builder(project).html().build()
     .expect("Project World should be valid");
 let world = WorldOverlay::new(base_world)
     .source_file("content.typ", "Overlay content.")
@@ -380,7 +378,23 @@ silent fallback.
 
 Enable the `dioxus` feature to use the Dioxus-facing render API. `use_render_session` is the main entry point, and it is declarative: because rendering is deterministic (explicit Render Environment, explicit Font Set, fixed Render Date), a Render Session is reactive memoization of a pure function. It renders synchronously on mount, re-renders whenever the Typst Project, view, or Render Environment it is given changes, runs World Preparation through the configured Package Source (degrading to missing-package diagnostics instead of blocking, then re-rendering when the resolved Package Bundles land), and retains the last good artifact as a Stale Artifact when newer source has errors.
 
-The Render Policy is the caller's signal wiring: the session renders whatever value reaches it, so the app decides what reaches it. Pass a signal committed on a button press for explicit rendering, or a debounced signal (for example [`dioxus-sdk-time`](https://crates.io/crates/dioxus-sdk-time)'s `use_debounce`) for live preview. Keep the _live_ signal on the editor widget and feed the session the committed or debounced one; rendering is synchronous CPU work, so avoid raw keystrokes for non-trivial documents. `TypstProvider` supplies shared defaults (Render Environment, Package Source), each overridable per session through `RenderSessionOptions`. The high-level `Typst` component is a thin view over a session, and `use_typst_render` remains the lower escape hatch for rendering custom Complete Typst Worlds.
+The Render Policy is the caller's signal wiring: the session renders whatever value reaches it, so the app decides what reaches it. Pass a signal committed on a button press for explicit rendering, or a debounced signal (for example [`dioxus-sdk-time`](https://crates.io/crates/dioxus-sdk-time)'s `use_debounce`) for live preview. Keep the _live_ signal on the editor widget and feed the session the committed or debounced one; rendering is synchronous CPU work, so avoid raw keystrokes for non-trivial documents. `TypstProvider` supplies shared defaults (Render Environment, Package Source), each overridable per session through `RenderSessionOptions`. The high-level `Typst` component is a thin view over a session. `TypstWorld` and `use_world_render` are the lower declarative seam for an application that already owns a Complete Typst World; they perform no World Preparation or composition. `use_typst_render` remains the imperative headless escape hatch.
+
+```rust,ignore
+use diotypst::{RenderEnvironment, SharedWorld, TypstView, TypstWorld};
+
+let world = RenderEnvironment::default()
+    .world_builder(project)
+    .html()
+    .build()?;
+
+rsx! {
+    TypstWorld {
+        world: SharedWorld::new(world),
+        view: TypstView::Html,
+    }
+}
+```
 
 ```rust,ignore
 use dioxus::prelude::*;

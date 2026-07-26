@@ -1,5 +1,6 @@
 use crate::paths::parse_file_path;
 use std::collections::HashSet;
+use std::sync::Arc;
 use typst_syntax::VirtualPath;
 use typst_syntax::package::PackageSpec;
 
@@ -7,7 +8,7 @@ use typst_syntax::package::PackageSpec;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PackageBundle {
     spec: PackageSpec,
-    files: Vec<PackageFile>,
+    files: Arc<[PackageFile]>,
 }
 
 impl PackageBundle {
@@ -28,7 +29,7 @@ impl PackageBundle {
     pub fn files(&self) -> impl Iterator<Item = (&str, &[u8])> {
         self.files
             .iter()
-            .map(|file| (file.path.get_without_slash(), file.bytes.as_slice()))
+            .map(|file| (file.path.get_without_slash(), file.bytes.as_ref()))
     }
 
     /// Return bytes for a package file by package-internal path.
@@ -38,7 +39,7 @@ impl PackageBundle {
         self.files
             .iter()
             .find(|file| file.path == path)
-            .map(|file| file.bytes.as_slice())
+            .map(|file| file.bytes.as_ref())
     }
 }
 
@@ -64,7 +65,7 @@ impl PackageBundleBuilder {
             .map(|(path, bytes)| {
                 Ok(PackageFile {
                     path: parse_file_path(&path).ok_or(PackageBundleError::InvalidPath { path })?,
-                    bytes,
+                    bytes: bytes.into(),
                 })
             })
             .collect::<Result<Vec<_>, PackageBundleError>>()?;
@@ -80,7 +81,7 @@ impl PackageBundleBuilder {
 
         Ok(PackageBundle {
             spec: self.spec,
-            files,
+            files: files.into(),
         })
     }
 }
@@ -88,7 +89,7 @@ impl PackageBundleBuilder {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct PackageFile {
     path: VirtualPath,
-    bytes: Vec<u8>,
+    bytes: Arc<[u8]>,
 }
 
 /// A spec-unique collection of Package Bundles.
@@ -237,4 +238,23 @@ pub enum PackageBundleError {
 
     /// More than one package file has the same package-internal path.
     DuplicatePath { path: String },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PackageBundle;
+    use std::sync::Arc;
+
+    #[test]
+    fn package_bundle_clones_share_immutable_file_storage() {
+        let bundle =
+            PackageBundle::builder("@preview/example:1.0.0".parse().expect("spec should parse"))
+                .file("lib.typ", b"#let value = 1".to_vec())
+                .build()
+                .expect("bundle should build");
+        let cloned = bundle.clone();
+
+        assert!(Arc::ptr_eq(&bundle.files, &cloned.files));
+        assert!(Arc::ptr_eq(&bundle.files[0].bytes, &cloned.files[0].bytes));
+    }
 }

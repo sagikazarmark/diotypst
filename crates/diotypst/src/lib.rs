@@ -13,7 +13,7 @@ mod server;
 mod session;
 
 #[cfg(feature = "dioxus")]
-pub use component::Typst;
+pub use component::{Typst, TypstWorld};
 #[cfg(target_arch = "wasm32")]
 pub use download::{BrowserDownloadError, trigger_browser_download};
 pub use download::{
@@ -44,9 +44,9 @@ pub use preparation::{
 pub use provider::{SharedPackageSource, TypstProviderDefaults};
 #[cfg(feature = "dioxus")]
 pub use provider::{TypstProvider, use_typst_defaults};
+pub use render_state::{HeadlessRender, RenderState, RenderStatus, SharedWorld};
 #[cfg(feature = "dioxus")]
-pub use render_state::use_typst_render;
-pub use render_state::{HeadlessRender, RenderState, RenderStatus};
+pub use render_state::{use_typst_render, use_world_render};
 pub use server::ServerRenderRequest;
 #[cfg(feature = "server")]
 pub use server::{

@@ -125,7 +125,12 @@ pub fn ImportExample() -> Element {
 
                                 match project {
                                     Ok(project) => {
-                                        renderer.write().render(&project, &environment, RenderFormat::Html)
+                                        let world = environment
+                                            .world_builder(project)
+                                            .html()
+                                            .build()
+                                            .expect("Project World should be valid");
+                                        renderer.write().render_world(&world, RenderFormat::Html)
                                     }
                                     Err(error) => message.set(workspace_validation_summary(&error)),
                                 }

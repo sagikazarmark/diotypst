@@ -1974,6 +1974,21 @@ fn html_render_artifact_cannot_be_prepared_as_a_download_file() {
     assert_eq!(error, DownloadError::UnsupportedArtifact);
 }
 
+fn render_headless(
+    renderer: &mut HeadlessRender,
+    workspace: &DocumentWorkspace,
+    environment: &RenderEnvironment,
+    format: RenderFormat,
+) {
+    let builder = environment.world_builder(workspace.clone());
+    let builder = match format {
+        RenderFormat::Html => builder.html(),
+        RenderFormat::Pdf | RenderFormat::PageImages(_) => builder,
+    };
+    let world = builder.build().expect("Project World should be valid");
+    renderer.render_world(&world, format);
+}
+
 #[test]
 fn headless_render_action_updates_current_render_state() {
     let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
@@ -1982,7 +1997,7 @@ fn headless_render_action_updates_current_render_state() {
         .expect("render environment should be valid");
     let mut renderer = HeadlessRender::new();
 
-    renderer.render(&workspace, &environment, RenderFormat::Html);
+    render_headless(&mut renderer, &workspace, &environment, RenderFormat::Html);
 
     let state = renderer.state();
     assert_eq!(state.status(), RenderStatus::Current);
@@ -2002,8 +2017,18 @@ fn headless_render_action_retains_stale_artifact_after_error() {
         .expect("render environment should be valid");
     let mut renderer = HeadlessRender::new();
 
-    renderer.render(&current_workspace, &environment, RenderFormat::Html);
-    renderer.render(&broken_workspace, &environment, RenderFormat::Html);
+    render_headless(
+        &mut renderer,
+        &current_workspace,
+        &environment,
+        RenderFormat::Html,
+    );
+    render_headless(
+        &mut renderer,
+        &broken_workspace,
+        &environment,
+        RenderFormat::Html,
+    );
 
     let state = renderer.state();
     assert_eq!(state.status(), RenderStatus::Stale);
@@ -2036,7 +2061,12 @@ fn headless_render_action_records_failed_state_without_artifact() {
         .expect("render environment should be valid");
     let mut renderer = HeadlessRender::new();
 
-    renderer.render(&broken_workspace, &environment, RenderFormat::Html);
+    render_headless(
+        &mut renderer,
+        &broken_workspace,
+        &environment,
+        RenderFormat::Html,
+    );
 
     let state = renderer.state();
     assert_eq!(state.status(), RenderStatus::Failed);
@@ -2053,8 +2083,18 @@ fn headless_render_action_does_not_keep_stale_artifact_when_format_changes() {
         .expect("render environment should be valid");
     let mut renderer = HeadlessRender::new();
 
-    renderer.render(&current_workspace, &environment, RenderFormat::Pdf);
-    renderer.render(&broken_workspace, &environment, RenderFormat::Html);
+    render_headless(
+        &mut renderer,
+        &current_workspace,
+        &environment,
+        RenderFormat::Pdf,
+    );
+    render_headless(
+        &mut renderer,
+        &broken_workspace,
+        &environment,
+        RenderFormat::Html,
+    );
 
     let state = renderer.state();
     assert_eq!(state.status(), RenderStatus::Failed);
@@ -2071,8 +2111,18 @@ fn headless_render_keeps_stale_artifact_after_failed_render() {
         .expect("render environment should be valid");
     let mut renderer = HeadlessRender::new();
 
-    renderer.render(&current_workspace, &environment, RenderFormat::Html);
-    renderer.render(&broken_workspace, &environment, RenderFormat::Html);
+    render_headless(
+        &mut renderer,
+        &current_workspace,
+        &environment,
+        RenderFormat::Html,
+    );
+    render_headless(
+        &mut renderer,
+        &broken_workspace,
+        &environment,
+        RenderFormat::Html,
+    );
 
     let state = renderer.state();
     assert_eq!(state.status(), RenderStatus::Stale);
@@ -2173,8 +2223,8 @@ fn test_zip_crc32_uses_standard_check_value() {
 mod dioxus_provider_tests {
     use super::*;
     use crate::{
-        Typst, TypstInput, TypstProvider, TypstProviderDefaults, TypstView, use_typst_defaults,
-        use_typst_render,
+        SharedWorld, Typst, TypstInput, TypstProvider, TypstProviderDefaults, TypstView,
+        TypstWorld, use_typst_defaults, use_typst_render,
     };
     use dioxus::prelude::*;
     use std::cell::RefCell;
@@ -2316,6 +2366,27 @@ mod dioxus_provider_tests {
 
         assert!(html.contains("Component View"), "{html}");
         assert!(html.contains("Rendered as semantic HTML."), "{html}");
+    }
+
+    #[test]
+    fn typst_world_component_renders_complete_world_without_composition() {
+        let project = DocumentWorkspace::from_source("= Complete World\n\nRendered directly.");
+        let environment = RenderEnvironment::default();
+        let world = environment
+            .world_builder(project)
+            .html()
+            .build()
+            .expect("HTML world should build");
+
+        let html = dioxus_ssr::render_element(rsx! {
+            TypstWorld {
+                world: SharedWorld::new(world),
+                view: TypstView::Html,
+            }
+        });
+
+        assert!(html.contains("Complete World"), "{html}");
+        assert!(html.contains("Rendered directly."), "{html}");
     }
 
     #[test]

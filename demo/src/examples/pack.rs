@@ -64,9 +64,12 @@ pub fn PackExample() -> Element {
                                                     return status.set(format!("Pack resources could not be fulfilled: {error:?}"));
                                                 }
                                             };
-                                            renderer
-                                                .write()
-                                                .render(pack.project(), &environment, RenderFormat::Html);
+                                            let world = environment
+                                                .world_builder(pack.project().clone())
+                                                .html()
+                                                .build()
+                                                .expect("Project World should be valid");
+                                            renderer.write().render_world(&world, RenderFormat::Html);
                                             status.set(pack_summary(&pack));
                                         }
                                         Err(error) => status.set(format!("Not a readable pack: {error:?}")),

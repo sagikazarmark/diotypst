@@ -1,8 +1,8 @@
 #![cfg(feature = "dioxus")]
 
-use crate::RenderArtifact;
 use crate::render_state::RenderStatus;
 use crate::session::{RenderSessionOptions, TypstInput, TypstView, use_render_session};
+use crate::{HeadlessRender, RenderArtifact, SharedWorld, use_world_render};
 use dioxus::prelude::*;
 
 /// Render Typst input as an explicit high-level Dioxus view.
@@ -30,7 +30,21 @@ pub fn Typst(
     }
 
     let session = use_render_session(input, view, options);
-    let renderer = session.state();
+    rsx! { TypstRenderView { renderer: session.state() } }
+}
+
+/// Render an already Complete Typst World as an explicit Dioxus view.
+///
+/// This component performs no World Preparation or World construction. Replace
+/// `world` when its source or resources change.
+#[component]
+pub fn TypstWorld(world: SharedWorld, view: TypstView) -> Element {
+    let renderer = use_world_render(world, view.render_format());
+    rsx! { TypstRenderView { renderer } }
+}
+
+#[component]
+fn TypstRenderView(renderer: Signal<HeadlessRender>) -> Element {
     let renderer = renderer.read();
     let state = renderer.state();
     let status = match state.status() {

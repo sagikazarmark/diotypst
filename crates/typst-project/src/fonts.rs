@@ -2,13 +2,15 @@ use typst::foundations::Bytes;
 use typst::text::{Font, FontInfo};
 use typst_kit::fonts::{FontSource, FontStore};
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// An explicit collection of fonts available while rendering a Typst Project.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct FontSet {
     source: FontSetSource,
+    #[cfg_attr(feature = "serde", serde(skip, default = "empty_font_store_cache"))]
+    store: Arc<OnceLock<FontStore>>,
 }
 
 impl FontSet {
@@ -19,6 +21,7 @@ impl FontSet {
     pub fn bundled() -> Self {
         Self {
             source: FontSetSource::Bundled,
+            store: empty_font_store_cache(),
         }
     }
 
@@ -26,6 +29,7 @@ impl FontSet {
     pub fn empty() -> Self {
         Self {
             source: FontSetSource::Files(Arc::default()),
+            store: empty_font_store_cache(),
         }
     }
 
@@ -46,6 +50,7 @@ impl FontSet {
                     .collect::<Vec<_>>()
                     .into(),
             ),
+            store: empty_font_store_cache(),
         }
     }
 
@@ -64,6 +69,7 @@ impl FontSet {
                     .collect::<Vec<_>>()
                     .into(),
             ),
+            store: empty_font_store_cache(),
         }
     }
 
@@ -117,31 +123,37 @@ impl FontSet {
             ),
         };
 
-        Self { source }
+        Self {
+            source,
+            store: empty_font_store_cache(),
+        }
     }
 
     /// Build a lazily-loading typst-kit font store for this Font Set.
     ///
     /// Face metadata is parsed eagerly (it feeds the `FontBook`), but full fonts load
     /// on first use through the store's slots.
-    pub(crate) fn font_store(&self) -> FontStore {
-        let mut store = FontStore::new();
+    pub(crate) fn font_store(&self) -> &FontStore {
+        self.store.get_or_init(|| {
+            let mut store = FontStore::new();
 
-        match &self.source {
-            #[cfg(feature = "bundled-fonts")]
-            FontSetSource::Bundled => store.extend(typst_kit::fonts::embedded()),
-            FontSetSource::Files(font_files) => extend_with_font_files(&mut store, font_files),
-            FontSetSource::Faces(faces) => extend_with_font_faces(&mut store, faces),
-            #[cfg(feature = "bundled-fonts")]
-            FontSetSource::BundledPlusFiles(font_files) => {
-                store.extend(typst_kit::fonts::embedded());
-                extend_with_font_files(&mut store, font_files);
+            match &self.source {
+                #[cfg(feature = "bundled-fonts")]
+                FontSetSource::Bundled => store.extend(typst_kit::fonts::embedded()),
+                FontSetSource::Files(font_files) => extend_with_font_files(&mut store, font_files),
+                FontSetSource::Faces(faces) => extend_with_font_faces(&mut store, faces),
+                #[cfg(feature = "bundled-fonts")]
+                FontSetSource::BundledPlusFiles(font_files) => {
+                    store.extend(typst_kit::fonts::embedded());
+                    extend_with_font_files(&mut store, font_files);
+                }
             }
-        }
 
-        store
+            store
+        })
     }
 
+    #[cfg_attr(not(feature = "pack"), allow(dead_code))]
     pub(crate) fn from_font_faces(faces: impl IntoIterator<Item = (Vec<u8>, u32)>) -> Self {
         Self {
             source: FontSetSource::Faces(
@@ -154,9 +166,11 @@ impl FontSet {
                     .collect::<Vec<_>>()
                     .into(),
             ),
+            store: empty_font_store_cache(),
         }
     }
 
+    #[cfg_attr(not(feature = "pack"), allow(dead_code))]
     pub(crate) fn container_files_where(
         &self,
         mut predicate: impl FnMut(&[u8]) -> bool,
@@ -174,6 +188,27 @@ impl FontSet {
         }
         files
     }
+}
+
+impl std::fmt::Debug for FontSet {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("FontSet")
+            .field("source", &self.source)
+            .finish()
+    }
+}
+
+impl PartialEq for FontSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.source == other.source
+    }
+}
+
+impl Eq for FontSet {}
+
+fn empty_font_store_cache() -> Arc<OnceLock<FontStore>> {
+    Arc::new(OnceLock::new())
 }
 
 impl Default for FontSet {
@@ -194,6 +229,7 @@ enum FontSetSource {
     Files(Arc<[Arc<[u8]>]>),
     #[cfg(feature = "bundled-fonts")]
     BundledPlusFiles(Arc<[Arc<[u8]>]>),
+    #[allow(dead_code)]
     Faces(Arc<[FontFace]>),
 }
 
@@ -283,6 +319,7 @@ mod tests {
         };
 
         assert!(Arc::ptr_eq(files, cloned_files));
+        assert!(std::ptr::eq(font_set.font_store(), cloned.font_store()));
         assert!(font_set.font_store().book().info(0).is_some());
     }
 }

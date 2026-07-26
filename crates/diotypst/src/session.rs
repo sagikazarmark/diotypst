@@ -113,8 +113,8 @@ mod hook {
     use crate::provider::use_typst_defaults;
     use crate::render_state::HeadlessRender;
     use crate::{
-        PackageDependencyTarget, PreparePackagesOptions, RenderEnvironment,
-        prepare_packages_with_progress,
+        DocumentWorkspace, PackageDependencyTarget, PreparePackagesOptions, RenderEnvironment,
+        SandboxedWorld, prepare_packages_with_progress,
     };
     use dioxus::hooks::{Resource, use_resource};
     use dioxus::prelude::{ReadableExt, Signal, WritableExt, use_effect, use_reactive, use_signal};
@@ -261,7 +261,8 @@ mod hook {
             let environment = environment.clone();
             use_signal(move || {
                 let mut headless = HeadlessRender::new();
-                headless.render(&workspace, &environment, view.render_format());
+                let world = compose_world(&workspace, &environment, view);
+                headless.render_world(&world, view.render_format());
                 headless
             })
         };
@@ -287,10 +288,11 @@ mod hook {
                 }
 
                 last_rendered.set(triple.clone());
+                let world = compose_world(&triple.0, &triple.2, triple.1);
                 let mut renderer = renderer;
                 renderer
                     .write()
-                    .render(&triple.0, &triple.2, triple.1.render_format());
+                    .render_world(&world, triple.1.render_format());
             },
         ));
 
@@ -299,5 +301,20 @@ mod hook {
             preparation,
             preparation_resource,
         }
+    }
+
+    fn compose_world(
+        workspace: &DocumentWorkspace,
+        environment: &RenderEnvironment,
+        view: TypstView,
+    ) -> SandboxedWorld {
+        let builder = environment.world_builder(workspace.clone());
+        let builder = match view {
+            TypstView::Html => builder.html(),
+            TypstView::PdfFrame | TypstView::PageImages(_) => builder,
+        };
+        builder
+            .build()
+            .expect("Render Session inputs should form a valid Project World")
     }
 }

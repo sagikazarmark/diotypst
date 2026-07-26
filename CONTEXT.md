@@ -29,7 +29,7 @@ All work that must finish before Typst rendering can read resources synchronousl
 _Avoid_: Async World lookup, lazy network world, implicit package world
 
 **Render Environment**:
-The explicit non-source context used while rendering, including Package Bundles, the Font Set, the render date, and System Inputs.
+The explicit reusable non-source base used to compose Complete Typst Worlds, including Package Bundles, the Font Set, the render date, and System Inputs. Clones may share immutable package storage and prepared font state; the environment remains a value describing render configuration, not a World.
 _Avoid_: Ambient host environment, hidden render state
 
 **System Inputs**:
@@ -132,12 +132,16 @@ _Avoid_: Ambient system fonts, hidden browser fonts
 A Dioxus component that provides Typst rendering or download behavior without prescribing visual styling or fixed markup.
 _Avoid_: Styled widget, demo-only component
 
+**World Render Flow**:
+The low-level rendering state, hook, or component that consumes an owned Complete Typst World and a Render Format. It owns artifact state and reactive rendering only; World Preparation and World composition belong to higher layers.
+_Avoid_: Project input parsing, package fetching, hidden World construction
+
 **Typst Provider**:
 A Dioxus context provider for shared Typst rendering defaults and services, such as a Render Environment, backend choice, policy defaults, or named presets. It does not own the current document unless explicitly modeled as a document-specific provider.
 _Avoid_: Ambient current world, hidden document owner
 
 **Typst Component**:
-A high-level Dioxus component that renders one document input as a selected view format, such as semantic HTML, a PDF frame, or Page Images, using provider defaults when present.
+A high-level Dioxus component that composes and prepares a Complete Typst World for one document input, then delegates rendering to a World Render Flow for a selected view format, using provider defaults when present.
 _Avoid_: Headless render state, download action, implicit format switch
 
 **Diagnostic**:

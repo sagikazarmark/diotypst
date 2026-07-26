@@ -27,7 +27,12 @@ pub fn MultiFileExample() -> Element {
                                 .source_file("chapters/intro.typ", "Included from an explicit Project File.")
                                 .build()
                                 .expect("project with explicit files should be valid");
-                            renderer.write().render(&project, &environment, RenderFormat::Html);
+                            let world = environment
+                                .world_builder(project)
+                                .html()
+                                .build()
+                                .expect("Project World should be valid");
+                            renderer.write().render_world(&world, RenderFormat::Html);
                         },
                         "Render the two-file project"
                     }

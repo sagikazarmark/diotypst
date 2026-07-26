@@ -1,8 +1,41 @@
-use crate::{
-    DocumentWorkspace, RenderArtifact, RenderEnvironment, RenderError, RenderFormat,
-    render_artifact, render_artifact_world,
-};
+use crate::{RenderArtifact, RenderError, RenderFormat, render_artifact_world};
 use typst::World;
+
+/// Owned, cheaply cloneable handle to a Complete Typst World.
+#[derive(Clone)]
+pub struct SharedWorld {
+    world: std::sync::Arc<dyn World>,
+}
+
+impl SharedWorld {
+    /// Share an owned Complete Typst World with rendering hooks and components.
+    pub fn new(world: impl World + 'static) -> Self {
+        Self {
+            world: std::sync::Arc::new(world),
+        }
+    }
+
+    /// Borrow the Complete Typst World.
+    pub fn as_world(&self) -> &dyn World {
+        self.world.as_ref()
+    }
+}
+
+impl std::fmt::Debug for SharedWorld {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SharedWorld")
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for SharedWorld {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.world, &other.world)
+    }
+}
+
+impl Eq for SharedWorld {}
 
 /// Reusable headless render flow for Dioxus-owned UI state.
 #[derive(Clone, Debug, PartialEq)]
@@ -18,22 +51,6 @@ impl HeadlessRender {
             state: RenderState::new(),
             format: None,
         }
-    }
-
-    /// Trigger rendering for the selected Render Format.
-    pub fn render(
-        &mut self,
-        workspace: &DocumentWorkspace,
-        environment: &RenderEnvironment,
-        format: RenderFormat,
-    ) {
-        if self.format != Some(format) {
-            self.state = RenderState::new();
-            self.format = Some(format);
-        }
-
-        self.state
-            .update(render_artifact(workspace, environment, format));
     }
 
     /// Trigger rendering for the selected Render Format from a Complete Typst World.
@@ -67,6 +84,40 @@ impl Default for HeadlessRender {
 #[cfg(feature = "dioxus")]
 pub fn use_typst_render() -> dioxus::prelude::Signal<HeadlessRender> {
     dioxus::prelude::use_signal(HeadlessRender::new)
+}
+
+/// Reactively render an owned Complete Typst World.
+///
+/// Replace the [`SharedWorld`] handle when any world input changes. This hook owns
+/// Render State only; World Preparation and World construction remain separate.
+#[cfg(feature = "dioxus")]
+pub fn use_world_render(
+    world: SharedWorld,
+    format: RenderFormat,
+) -> dioxus::prelude::Signal<HeadlessRender> {
+    use dioxus::prelude::{ReadableExt, WritableExt, use_effect, use_reactive, use_signal};
+
+    let mut renderer = {
+        let world = world.clone();
+        use_signal(move || {
+            let mut render = HeadlessRender::new();
+            render.render_world(world.as_world(), format);
+            render
+        })
+    };
+    let mut last_rendered = {
+        let world = world.clone();
+        use_signal(move || (world, format))
+    };
+    use_effect(use_reactive((&world, &format), move |(world, format)| {
+        if *last_rendered.peek() == (world.clone(), format) {
+            return;
+        }
+        last_rendered.set((world.clone(), format));
+        renderer.write().render_world(world.as_world(), format);
+    }));
+
+    renderer
 }
 
 /// Headless state for a render flow that may retain a Stale Artifact.

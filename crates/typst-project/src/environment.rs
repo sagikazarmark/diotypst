@@ -1,4 +1,7 @@
-use crate::{DuplicatePackageSpec, FontSet, PackageBundle, PackageBundleSet, PackageSpec};
+use crate::{
+    DocumentWorkspace, DuplicatePackageSpec, FontSet, PackageBundle, PackageBundleSet, PackageSpec,
+    SandboxedWorld, SandboxedWorldBuilder, WorkspaceValidationError,
+};
 use typst::foundations::{Datetime, Dict, IntoValue};
 
 const DEFAULT_RENDER_DATE: RenderDate = RenderDate {
@@ -103,6 +106,19 @@ impl RenderEnvironment {
             render_date: self.render_date,
             inputs: self.inputs.clone(),
         }
+    }
+
+    /// Build a Complete Project World for a Typst Project using this reusable base.
+    pub fn world(
+        &self,
+        project: DocumentWorkspace,
+    ) -> Result<SandboxedWorld, WorkspaceValidationError> {
+        self.world_builder(project).build()
+    }
+
+    /// Start building a Complete Project World from this reusable base.
+    pub fn world_builder(&self, project: DocumentWorkspace) -> SandboxedWorldBuilder {
+        SandboxedWorld::builder(project, self.clone())
     }
 
     /// Return a resolved package bundle by exact package spec.
@@ -280,4 +296,31 @@ impl RenderEnvironmentBuilder {
 pub enum RenderEnvironmentError {
     /// More than one Package Bundle has the same exact package spec.
     DuplicatePackage { spec: PackageSpec },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RenderEnvironment;
+    use crate::DocumentWorkspace;
+    use typst::World;
+
+    #[test]
+    fn environment_builds_worlds_for_changing_projects() {
+        let environment = RenderEnvironment::default();
+        let first = environment
+            .world(DocumentWorkspace::from_source("First"))
+            .expect("first world should build");
+        let second = environment
+            .world(DocumentWorkspace::from_source("Second"))
+            .expect("second world should build");
+
+        assert_eq!(
+            first.source(first.main()).expect("first source").text(),
+            "First"
+        );
+        assert_eq!(
+            second.source(second.main()).expect("second source").text(),
+            "Second"
+        );
+    }
 }

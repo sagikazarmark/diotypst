@@ -17,7 +17,7 @@ typst-project = "0.1"
 ## Quick Start
 
 ```rust
-use typst_project::{DocumentWorkspace, RenderEnvironment, SandboxedWorld};
+use typst_project::{DocumentWorkspace, RenderEnvironment};
 
 let project = DocumentWorkspace::from_source("= Hello");
 let environment = RenderEnvironment::builder()
@@ -25,11 +25,14 @@ let environment = RenderEnvironment::builder()
     .build()
     .expect("render environment should be valid");
 
-let world = SandboxedWorld::new(project, environment)
+let world = environment.world(project)
     .expect("project should be valid");
 ```
 
-Use `SandboxedWorld::builder(project, environment).html().build()` when the world must enable Typst's HTML feature.
+Render Environment clones share immutable package storage and lazily prepared font state, so one
+environment can cheaply build worlds for changing editor projects. Use
+`environment.world_builder(project).html().build()` when the world must enable Typst's HTML
+feature.
 
 ## Feature Flags
 

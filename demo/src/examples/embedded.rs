@@ -28,7 +28,12 @@ pub fn EmbeddedExample() -> Element {
                                 .build()
                                 .expect("environment with the embedded package should be valid");
 
-                            renderer.write().render(&project, &environment, RenderFormat::Html);
+                            let world = environment
+                                .world_builder(project)
+                                .html()
+                                .build()
+                                .expect("Project World should be valid");
+                            renderer.write().render_world(&world, RenderFormat::Html);
                         },
                         "Render with the embedded package"
                     }

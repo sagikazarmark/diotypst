@@ -373,6 +373,19 @@ mod tests {
         (dom, renderer)
     }
 
+    fn render_headless_html(
+        renderer: &mut HeadlessRender,
+        workspace: &DocumentWorkspace,
+        environment: &RenderEnvironment,
+    ) {
+        let world = environment
+            .world_builder(workspace.clone())
+            .html()
+            .build()
+            .expect("Project World should be valid");
+        renderer.render_world(&world, RenderFormat::Html);
+    }
+
     #[test]
     fn dioxus_render_hook_exposes_current_stale_and_failed_render_state() {
         let (_dom, mut renderer) = render_signal_from_hook();
@@ -382,9 +395,7 @@ mod tests {
         let current_workspace = DocumentWorkspace::from_source(SAMPLE_TYPST);
         let broken_workspace = DocumentWorkspace::from_source("#let broken =");
 
-        renderer
-            .write()
-            .render(&current_workspace, &environment, RenderFormat::Html);
+        render_headless_html(&mut renderer.write(), &current_workspace, &environment);
 
         {
             let renderer = renderer.read();
@@ -397,9 +408,7 @@ mod tests {
             assert!(state.error().is_none());
         }
 
-        renderer
-            .write()
-            .render(&broken_workspace, &environment, RenderFormat::Html);
+        render_headless_html(&mut renderer.write(), &broken_workspace, &environment);
 
         {
             let renderer = renderer.read();
@@ -413,9 +422,11 @@ mod tests {
         }
 
         let (_failed_dom, mut failed_renderer) = render_signal_from_hook();
-        failed_renderer
-            .write()
-            .render(&broken_workspace, &environment, RenderFormat::Html);
+        render_headless_html(
+            &mut failed_renderer.write(),
+            &broken_workspace,
+            &environment,
+        );
 
         let failed_renderer = failed_renderer.read();
         let failed_state = failed_renderer.state();
@@ -432,7 +443,7 @@ mod tests {
         let workspace = DocumentWorkspace::from_source(SAMPLE_TYPST);
         let mut renderer = HeadlessRender::new();
 
-        renderer.render(&workspace, &environment, RenderFormat::Html);
+        render_headless_html(&mut renderer, &workspace, &environment);
 
         let state = renderer.state();
         assert_eq!(state.status(), RenderStatus::Current);
@@ -451,8 +462,8 @@ mod tests {
         let broken_workspace = DocumentWorkspace::from_source("#let broken =");
         let mut renderer = HeadlessRender::new();
 
-        renderer.render(&current_workspace, &environment, RenderFormat::Html);
-        renderer.render(&broken_workspace, &environment, RenderFormat::Html);
+        render_headless_html(&mut renderer, &current_workspace, &environment);
+        render_headless_html(&mut renderer, &broken_workspace, &environment);
 
         let state = renderer.state();
         assert_eq!(state.status(), RenderStatus::Stale);
@@ -489,7 +500,7 @@ mod tests {
         let workspace = DocumentWorkspace::from_source(SAMPLE_TYPST);
         let mut renderer = HeadlessRender::new();
 
-        renderer.render(&workspace, &environment, RenderFormat::Html);
+        render_headless_html(&mut renderer, &workspace, &environment);
 
         let Some(RenderArtifact::Html(html)) = renderer.state().artifact() else {
             panic!("expected HTML artifact");
