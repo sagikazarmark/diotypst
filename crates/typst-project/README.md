@@ -32,7 +32,10 @@ let world = environment.world(project)
 Render Environment clones share immutable package storage and lazily prepared font state, so one
 environment can cheaply build worlds for changing editor projects. Use
 `environment.world_builder(project).html().build()` when the world must enable Typst's HTML
-feature.
+feature. A stateful editor can retain one `SandboxedWorld` and call `replace_project` between
+renders; its file store edits previously requested Typst sources in place for incremental
+compilation while the root and Project File paths remain stable. Project layout changes replace
+the file store without rebuilding prepared environment resources.
 
 ## Feature Flags
 

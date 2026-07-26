@@ -51,6 +51,14 @@ impl TypstView {
             Self::PageImages(options) => RenderFormat::PageImages(options),
         }
     }
+
+    #[cfg(feature = "dioxus")]
+    pub(crate) fn dependency_target(self) -> crate::PackageDependencyTarget {
+        match self {
+            Self::Html => crate::PackageDependencyTarget::Html,
+            Self::PdfFrame | Self::PageImages(_) => crate::PackageDependencyTarget::Paged,
+        }
+    }
 }
 
 /// Per-call overrides for a Render Session.
@@ -113,8 +121,8 @@ mod hook {
     use crate::provider::use_typst_defaults;
     use crate::render_state::HeadlessRender;
     use crate::{
-        DocumentWorkspace, PackageDependencyTarget, PreparePackagesOptions, RenderEnvironment,
-        SandboxedWorld, prepare_packages_with_progress,
+        DocumentWorkspace, PreparePackagesOptions, RenderEnvironment, SandboxedWorld,
+        prepare_packages_with_progress,
     };
     use dioxus::hooks::{Resource, use_resource};
     use dioxus::prelude::{ReadableExt, Signal, WritableExt, use_effect, use_reactive, use_signal};
@@ -200,10 +208,7 @@ mod hook {
             .clone()
             .or_else(|| defaults.package_source().cloned());
         let workspace = input.to_workspace();
-        let target = match view {
-            TypstView::Html => PackageDependencyTarget::Html,
-            TypstView::PdfFrame | TypstView::PageImages(_) => PackageDependencyTarget::Paged,
-        };
+        let target = view.dependency_target();
 
         // --- World Preparation dimension ---
         let mut preparation_inputs =
@@ -256,14 +261,18 @@ mod hook {
         // --- Render dimension ---
         // The first render happens synchronously in the signal initializer so first
         // paint and server-side rendering emit the document.
-        let renderer = {
+        let mut world = {
             let workspace = workspace.clone();
             let environment = environment.clone();
+            use_signal(move || compose_world(&workspace, &environment, view))
+        };
+        let renderer = {
+            let world = world;
             use_signal(move || {
-                let mut headless = HeadlessRender::new();
-                let world = compose_world(&workspace, &environment, view);
-                headless.render_world(&world, view.render_format());
-                headless
+                let world = world.read();
+                let mut renderer = HeadlessRender::new();
+                renderer.render_world(&*world, view.render_format());
+                renderer
             })
         };
 
@@ -283,16 +292,26 @@ mod hook {
             move |(workspace, view)| {
                 let environment = preparation.read().environment().clone();
                 let triple = (workspace, view, environment);
-                if *last_rendered.peek() == triple {
+                let previous = last_rendered.peek().clone();
+                if previous == triple {
                     return;
                 }
 
                 last_rendered.set(triple.clone());
-                let world = compose_world(&triple.0, &triple.2, triple.1);
+                let can_retain_sources = previous.2 == triple.2
+                    && previous.1.dependency_target() == triple.1.dependency_target();
+                let mut current_world = world.write();
+                if can_retain_sources {
+                    current_world
+                        .replace_project(triple.0.clone())
+                        .expect("Render Session input should remain a valid Typst Project");
+                } else {
+                    *current_world = compose_world(&triple.0, &triple.2, triple.1);
+                }
                 let mut renderer = renderer;
                 renderer
                     .write()
-                    .render_world(&world, triple.1.render_format());
+                    .render_world(&*current_world, triple.1.render_format());
             },
         ));
 

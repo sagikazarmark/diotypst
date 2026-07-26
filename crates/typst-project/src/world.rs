@@ -63,6 +63,27 @@ impl SandboxedWorld {
             .features(typst_features)
             .build()
     }
+
+    /// Replace the Typst Project while retaining parsed source slots and prepared resources.
+    ///
+    /// When the root and Project File paths are unchanged, previously requested sources
+    /// are edited in place on the next render. A changed project layout replaces the file
+    /// store to avoid retaining removed paths. Prepared resources remain shared in both cases.
+    pub fn replace_project(
+        &mut self,
+        project: DocumentWorkspace,
+    ) -> Result<(), WorkspaceValidationError> {
+        project.validate()?;
+        self.main = file_id_for_workspace_path(project.root_path());
+        if self.files.loader().has_same_project_layout(&project) {
+            self.files.loader_mut().replace_project(project);
+            self.files.reset();
+        } else {
+            let loader = self.files.loader().for_project(project);
+            self.files = FileStore::new(loader);
+        }
+        Ok(())
+    }
 }
 
 /// Builder for a crate-owned Project World.
@@ -170,7 +191,7 @@ struct ExplicitFileLoader {
     workspace: DocumentWorkspace,
     environment: RenderEnvironment,
     #[cfg(feature = "lazy-packages")]
-    lazy: Option<LazyPackageResolver>,
+    lazy: Option<std::sync::Arc<LazyPackageResolver>>,
 }
 
 impl ExplicitFileLoader {
@@ -183,12 +204,35 @@ impl ExplicitFileLoader {
         }
     }
 
+    fn replace_project(&mut self, workspace: DocumentWorkspace) {
+        self.workspace = workspace;
+    }
+
+    fn has_same_project_layout(&self, workspace: &DocumentWorkspace) -> bool {
+        self.workspace.root_path() == workspace.root_path()
+            && self.workspace.files().len() == workspace.files().len()
+            && self.workspace.files().iter().all(|file| {
+                workspace
+                    .file_bytes(file.path().get_without_slash())
+                    .is_some()
+            })
+    }
+
+    fn for_project(&self, workspace: DocumentWorkspace) -> Self {
+        Self {
+            workspace,
+            environment: self.environment.clone(),
+            #[cfg(feature = "lazy-packages")]
+            lazy: self.lazy.clone(),
+        }
+    }
+
     #[cfg(feature = "lazy-packages")]
     fn with_lazy_package_source(
         mut self,
         source: std::sync::Arc<dyn crate::SyncPackageSource>,
     ) -> Self {
-        self.lazy = Some(LazyPackageResolver::new(source));
+        self.lazy = Some(std::sync::Arc::new(LazyPackageResolver::new(source)));
         self
     }
 
@@ -691,6 +735,70 @@ mod tests {
             library_inputs(overlay.library()).get("name").ok(),
             Some(&"base".into_value())
         );
+    }
+
+    #[test]
+    fn replacing_project_refreshes_sources_without_leaking_removed_files() {
+        let first = DocumentWorkspace::builder("main.typ")
+            .source_file("main.typ", "First")
+            .source_file("included.typ", "Included")
+            .build()
+            .expect("first project should build");
+        let mut world = RenderEnvironment::default()
+            .world(first)
+            .expect("world should build");
+        let included = file_id_for_workspace_path(
+            &VirtualPath::new("included.typ").expect("path should be valid"),
+        );
+        assert_eq!(
+            world.source(world.main()).expect("main source").text(),
+            "First"
+        );
+        assert_eq!(
+            world.source(included).expect("included source").text(),
+            "Included"
+        );
+
+        let second = DocumentWorkspace::builder("main.typ")
+            .source_file("main.typ", "Second")
+            .source_file("included.typ", "Updated")
+            .build()
+            .expect("second project should build");
+        world
+            .replace_project(second)
+            .expect("replacement project should be valid");
+        assert_eq!(
+            world.source(world.main()).expect("main source").text(),
+            "Second"
+        );
+        assert_eq!(
+            world.source(included).expect("included source").text(),
+            "Updated"
+        );
+
+        world
+            .replace_project(DocumentWorkspace::from_source("Third"))
+            .expect("smaller project should be valid");
+        assert_eq!(
+            world.source(world.main()).expect("main source").text(),
+            "Third"
+        );
+        assert!(world.source(included).is_err());
+
+        let previous_main = world.main();
+        let fourth = DocumentWorkspace::builder("other.typ")
+            .source_file("other.typ", "Fourth")
+            .build()
+            .expect("fourth project should build");
+        world
+            .replace_project(fourth)
+            .expect("new root project should be valid");
+        assert_ne!(world.main(), previous_main);
+        assert_eq!(
+            world.source(world.main()).expect("new main source").text(),
+            "Fourth"
+        );
+        assert!(world.source(previous_main).is_err());
     }
 }
 
