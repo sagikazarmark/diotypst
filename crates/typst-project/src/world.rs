@@ -1,8 +1,8 @@
 use crate::observe::{file_id_package, file_id_path};
-use crate::workspace::parse_workspace_path;
+use crate::project::parse_project_path;
 use crate::{
-    DocumentWorkspace, FontSet, PackageBundle, PackageSpec, RenderDate, RenderEnvironment,
-    WorkspaceValidationError,
+    FontSet, PackageBundle, PackageSpec, Project, ProjectValidationError, RenderDate,
+    RenderEnvironment,
 };
 use std::path::PathBuf;
 use typst::diag::{FileError, FileResult};
@@ -14,7 +14,7 @@ use typst::{Feature, Features, Library, LibraryExt, World};
 use typst_kit::files::{FileLoader, FileStore};
 
 /// A crate-owned Complete Typst World built from an explicit Typst Project.
-pub struct SandboxedWorld {
+pub struct ProjectWorld {
     files: FileStore<ExplicitFileLoader>,
     library: LazyHash<Library>,
     fonts: FontSet,
@@ -22,30 +22,27 @@ pub struct SandboxedWorld {
     render_date: RenderDate,
 }
 
-impl SandboxedWorld {
+impl ProjectWorld {
     /// Create a Project World with default Typst library features for paged rendering.
     pub fn new(
-        workspace: DocumentWorkspace,
+        project: Project,
         environment: RenderEnvironment,
-    ) -> Result<Self, WorkspaceValidationError> {
-        Self::builder(workspace, environment).build()
+    ) -> Result<Self, ProjectValidationError> {
+        Self::builder(project, environment).build()
     }
 
     /// Create a Project World with Typst's HTML feature enabled.
     pub fn for_html(
-        workspace: DocumentWorkspace,
+        project: Project,
         environment: RenderEnvironment,
-    ) -> Result<Self, WorkspaceValidationError> {
-        Self::builder(workspace, environment).html().build()
+    ) -> Result<Self, ProjectValidationError> {
+        Self::builder(project, environment).html().build()
     }
 
     /// Start building a Project World.
-    pub fn builder(
-        workspace: DocumentWorkspace,
-        environment: RenderEnvironment,
-    ) -> SandboxedWorldBuilder {
-        SandboxedWorldBuilder {
-            workspace,
+    pub fn builder(project: Project, environment: RenderEnvironment) -> ProjectWorldBuilder {
+        ProjectWorldBuilder {
+            project,
             environment,
             typst_features: Features::default(),
             #[cfg(feature = "lazy-packages")]
@@ -55,11 +52,11 @@ impl SandboxedWorld {
 
     /// Create a Project World with explicit Typst library features.
     pub fn with_features(
-        workspace: DocumentWorkspace,
+        project: Project,
         environment: RenderEnvironment,
         typst_features: Features,
-    ) -> Result<Self, WorkspaceValidationError> {
-        Self::builder(workspace, environment)
+    ) -> Result<Self, ProjectValidationError> {
+        Self::builder(project, environment)
             .features(typst_features)
             .build()
     }
@@ -69,12 +66,9 @@ impl SandboxedWorld {
     /// When the root and Project File paths are unchanged, previously requested sources
     /// are edited in place on the next render. A changed project layout replaces the file
     /// store to avoid retaining removed paths. Prepared resources remain shared in both cases.
-    pub fn replace_project(
-        &mut self,
-        project: DocumentWorkspace,
-    ) -> Result<(), WorkspaceValidationError> {
+    pub fn replace_project(&mut self, project: Project) -> Result<(), ProjectValidationError> {
         project.validate()?;
-        self.main = file_id_for_workspace_path(project.root_path());
+        self.main = file_id_for_project_path(project.root_path());
         if self.files.loader().has_same_project_layout(&project) {
             self.files.loader_mut().replace_project(project);
             self.files.reset();
@@ -87,15 +81,15 @@ impl SandboxedWorld {
 }
 
 /// Builder for a crate-owned Project World.
-pub struct SandboxedWorldBuilder {
-    workspace: DocumentWorkspace,
+pub struct ProjectWorldBuilder {
+    project: Project,
     environment: RenderEnvironment,
     typst_features: Features,
     #[cfg(feature = "lazy-packages")]
     lazy_package_source: Option<std::sync::Arc<dyn crate::SyncPackageSource>>,
 }
 
-impl SandboxedWorldBuilder {
+impl ProjectWorldBuilder {
     /// Replace the Typst library features used by this world.
     pub fn features(mut self, typst_features: Features) -> Self {
         self.typst_features = typst_features;
@@ -124,13 +118,13 @@ impl SandboxedWorldBuilder {
     }
 
     /// Build and validate the Project World.
-    pub fn build(self) -> Result<SandboxedWorld, WorkspaceValidationError> {
-        self.workspace.validate()?;
+    pub fn build(self) -> Result<ProjectWorld, ProjectValidationError> {
+        self.project.validate()?;
 
         // Lazy typst-kit font store: face metadata now, full fonts on first use.
         let fonts = self.environment.font_set().clone();
         let _ = fonts.font_store();
-        let main = file_id_for_workspace_path(self.workspace.root_path());
+        let main = file_id_for_project_path(self.project.root_path());
         let render_date = self.environment.render_date();
         let library = LazyHash::new(
             Library::builder()
@@ -139,7 +133,7 @@ impl SandboxedWorldBuilder {
                 .build(),
         );
 
-        let loader = ExplicitFileLoader::new(self.workspace, self.environment);
+        let loader = ExplicitFileLoader::new(self.project, self.environment);
         #[cfg(feature = "lazy-packages")]
         let loader = match self.lazy_package_source {
             Some(source) => loader.with_lazy_package_source(source),
@@ -147,7 +141,7 @@ impl SandboxedWorldBuilder {
         };
         let files = FileStore::new(loader);
 
-        Ok(SandboxedWorld {
+        Ok(ProjectWorld {
             files,
             library,
             fonts,
@@ -157,7 +151,7 @@ impl SandboxedWorldBuilder {
     }
 }
 
-impl World for SandboxedWorld {
+impl World for ProjectWorld {
     fn library(&self) -> &LazyHash<Library> {
         &self.library
     }
@@ -188,39 +182,39 @@ impl World for SandboxedWorld {
 }
 
 struct ExplicitFileLoader {
-    workspace: DocumentWorkspace,
+    project: Project,
     environment: RenderEnvironment,
     #[cfg(feature = "lazy-packages")]
     lazy: Option<std::sync::Arc<LazyPackageResolver>>,
 }
 
 impl ExplicitFileLoader {
-    fn new(workspace: DocumentWorkspace, environment: RenderEnvironment) -> Self {
+    fn new(project: Project, environment: RenderEnvironment) -> Self {
         Self {
-            workspace,
+            project,
             environment,
             #[cfg(feature = "lazy-packages")]
             lazy: None,
         }
     }
 
-    fn replace_project(&mut self, workspace: DocumentWorkspace) {
-        self.workspace = workspace;
+    fn replace_project(&mut self, project: Project) {
+        self.project = project;
     }
 
-    fn has_same_project_layout(&self, workspace: &DocumentWorkspace) -> bool {
-        self.workspace.root_path() == workspace.root_path()
-            && self.workspace.files().len() == workspace.files().len()
-            && self.workspace.files().iter().all(|file| {
-                workspace
+    fn has_same_project_layout(&self, project: &Project) -> bool {
+        self.project.root_path() == project.root_path()
+            && self.project.files().len() == project.files().len()
+            && self.project.files().iter().all(|file| {
+                project
                     .file_bytes(file.path().get_without_slash())
                     .is_some()
             })
     }
 
-    fn for_project(&self, workspace: DocumentWorkspace) -> Self {
+    fn for_project(&self, project: Project) -> Self {
         Self {
-            workspace,
+            project,
             environment: self.environment.clone(),
             #[cfg(feature = "lazy-packages")]
             lazy: self.lazy.clone(),
@@ -351,7 +345,7 @@ impl FileLoader for ExplicitFileLoader {
             return self.package_file(package, &path);
         }
 
-        self.workspace
+        self.project
             .file_bytes(&path)
             .map(|bytes| Bytes::new(bytes.to_vec()))
             .ok_or_else(|| FileError::NotFound(PathBuf::from(path)))
@@ -438,9 +432,9 @@ impl<W> WorldOverlay<W> {
     }
 
     /// Render through this overlay using a different main Typst entrypoint.
-    pub fn main(mut self, path: impl Into<String>) -> Result<Self, WorkspaceValidationError> {
-        let path = parse_workspace_path(&path.into())?;
-        self.main = Some(file_id_for_workspace_path(&path));
+    pub fn main(mut self, path: impl Into<String>) -> Result<Self, ProjectValidationError> {
+        let path = parse_project_path(&path.into())?;
+        self.main = Some(file_id_for_project_path(&path));
 
         Ok(self)
     }
@@ -500,7 +494,7 @@ impl<W> WorldOverlay<W> {
         self,
         path: impl Into<String>,
         source: impl Into<String>,
-    ) -> Result<Self, WorkspaceValidationError> {
+    ) -> Result<Self, ProjectValidationError> {
         self.file(path, source.into().into_bytes())
     }
 
@@ -509,8 +503,8 @@ impl<W> WorldOverlay<W> {
         mut self,
         path: impl Into<String>,
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<Self, WorkspaceValidationError> {
-        let path = parse_workspace_path(&path.into())?;
+    ) -> Result<Self, ProjectValidationError> {
+        let path = parse_project_path(&path.into())?;
         let bytes = bytes.into();
 
         if let Some(file) = self.files.iter_mut().find(|file| file.path == path) {
@@ -667,7 +661,7 @@ fn library_inputs(library: &Library) -> Dict {
     inputs.clone()
 }
 
-fn file_id_for_workspace_path(path: &VirtualPath) -> FileId {
+fn file_id_for_project_path(path: &VirtualPath) -> FileId {
     RootedPath::new(VirtualRoot::Project, path.clone()).intern()
 }
 
@@ -683,14 +677,14 @@ mod tests {
     use super::*;
     use typst::foundations::IntoValue;
 
-    fn base_world(inputs: &[(&str, &str)]) -> SandboxedWorld {
+    fn base_world(inputs: &[(&str, &str)]) -> ProjectWorld {
         let mut builder = RenderEnvironment::builder().font_set(FontSet::empty());
         for (key, value) in inputs {
             builder = builder.input(*key, *value);
         }
 
-        SandboxedWorld::new(
-            DocumentWorkspace::from_source("Hello"),
+        ProjectWorld::new(
+            Project::from_source("Hello"),
             builder.build().expect("test environment should build"),
         )
         .expect("test world should build")
@@ -709,8 +703,8 @@ mod tests {
 
     #[test]
     fn overlay_inputs_inherit_base_features() {
-        let world = SandboxedWorld::builder(
-            DocumentWorkspace::from_source("Hello"),
+        let world = ProjectWorld::builder(
+            Project::from_source("Hello"),
             RenderEnvironment::builder()
                 .font_set(FontSet::empty())
                 .build()
@@ -739,7 +733,7 @@ mod tests {
 
     #[test]
     fn replacing_project_refreshes_sources_without_leaking_removed_files() {
-        let first = DocumentWorkspace::builder("main.typ")
+        let first = Project::builder("main.typ")
             .source_file("main.typ", "First")
             .source_file("included.typ", "Included")
             .build()
@@ -747,7 +741,7 @@ mod tests {
         let mut world = RenderEnvironment::default()
             .world(first)
             .expect("world should build");
-        let included = file_id_for_workspace_path(
+        let included = file_id_for_project_path(
             &VirtualPath::new("included.typ").expect("path should be valid"),
         );
         assert_eq!(
@@ -759,7 +753,7 @@ mod tests {
             "Included"
         );
 
-        let second = DocumentWorkspace::builder("main.typ")
+        let second = Project::builder("main.typ")
             .source_file("main.typ", "Second")
             .source_file("included.typ", "Updated")
             .build()
@@ -777,7 +771,7 @@ mod tests {
         );
 
         world
-            .replace_project(DocumentWorkspace::from_source("Third"))
+            .replace_project(Project::from_source("Third"))
             .expect("smaller project should be valid");
         assert_eq!(
             world.source(world.main()).expect("main source").text(),
@@ -786,7 +780,7 @@ mod tests {
         assert!(world.source(included).is_err());
 
         let previous_main = world.main();
-        let fourth = DocumentWorkspace::builder("other.typ")
+        let fourth = Project::builder("other.typ")
             .source_file("other.typ", "Fourth")
             .build()
             .expect("fourth project should build");
@@ -831,9 +825,9 @@ mod lazy_tests {
         }
     }
 
-    fn lazy_world(source: Arc<CountingSource>) -> SandboxedWorld {
-        SandboxedWorld::builder(
-            DocumentWorkspace::from_source("Hello"),
+    fn lazy_world(source: Arc<CountingSource>) -> ProjectWorld {
+        ProjectWorld::builder(
+            Project::from_source("Hello"),
             RenderEnvironment::builder()
                 .font_set(FontSet::empty())
                 .build()

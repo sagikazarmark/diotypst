@@ -1,7 +1,7 @@
 #[cfg(feature = "dioxus")]
 use crate::RenderFormat;
 use crate::provider::SharedPackageSource;
-use crate::{DocumentWorkspace, PageImageOptions, RenderEnvironment};
+use crate::{PageImageOptions, Project, RenderEnvironment};
 use typst::foundations::Dict;
 
 /// Document input accepted by a Render Session and the Typst Component.
@@ -11,7 +11,7 @@ pub enum TypstInput {
     Source(String),
 
     /// A complete Typst Project.
-    Workspace(DocumentWorkspace),
+    Project(Project),
 }
 
 impl TypstInput {
@@ -21,10 +21,10 @@ impl TypstInput {
     }
 
     #[cfg(feature = "dioxus")]
-    pub(crate) fn to_workspace(&self) -> DocumentWorkspace {
+    pub(crate) fn to_project(&self) -> Project {
         match self {
-            Self::Source(source) => DocumentWorkspace::from_source(source.clone()),
-            Self::Workspace(workspace) => workspace.clone(),
+            Self::Source(source) => Project::from_source(source.clone()),
+            Self::Project(project) => project.clone(),
         }
     }
 }
@@ -121,7 +121,7 @@ mod hook {
     use crate::provider::use_typst_defaults;
     use crate::render_state::HeadlessRender;
     use crate::{
-        DocumentWorkspace, PreparePackagesOptions, RenderEnvironment, SandboxedWorld,
+        PreparePackagesOptions, Project, ProjectWorld, RenderEnvironment,
         prepare_packages_with_progress,
     };
     use dioxus::hooks::{Resource, use_resource};
@@ -207,14 +207,13 @@ mod hook {
             .package_source
             .clone()
             .or_else(|| defaults.package_source().cloned());
-        let workspace = input.to_workspace();
+        let project = input.to_project();
         let target = view.dependency_target();
 
         // --- World Preparation dimension ---
-        let mut preparation_inputs =
-            use_signal(|| (workspace.clone(), environment.clone(), target));
+        let mut preparation_inputs = use_signal(|| (project.clone(), environment.clone(), target));
         use_effect(use_reactive(
-            (&workspace, &environment, &target),
+            (&project, &environment, &target),
             move |value| {
                 if *preparation_inputs.peek() != value {
                     preparation_inputs.set(value);
@@ -224,7 +223,7 @@ mod hook {
 
         let mut preparation = use_signal(|| WorldPreparationState::new(environment.clone()));
         let preparation_resource = use_resource(move || {
-            let (workspace, base_environment, target) = preparation_inputs.read().clone();
+            let (project, base_environment, target) = preparation_inputs.read().clone();
             let source = source.clone();
 
             async move {
@@ -242,7 +241,7 @@ mod hook {
                 }
 
                 let result = prepare_packages_with_progress(
-                    &workspace,
+                    &project,
                     &base_environment,
                     target,
                     &source,
@@ -262,9 +261,9 @@ mod hook {
         // The first render happens synchronously in the signal initializer so first
         // paint and server-side rendering emit the document.
         let mut world = {
-            let workspace = workspace.clone();
+            let project = project.clone();
             let environment = environment.clone();
-            use_signal(move || compose_world(&workspace, &environment, view))
+            use_signal(move || compose_world(&project, &environment, view))
         };
         let renderer = {
             let world = world;
@@ -283,37 +282,34 @@ mod hook {
         // resolved Package Bundles land and re-render); a preparation run that merely
         // echoes an already-rendered environment changes nothing and renders nothing.
         let mut last_rendered = {
-            let workspace = workspace.clone();
+            let project = project.clone();
             let environment = environment.clone();
-            use_signal(move || (workspace, view, environment))
+            use_signal(move || (project, view, environment))
         };
-        use_effect(use_reactive(
-            (&workspace, &view),
-            move |(workspace, view)| {
-                let environment = preparation.read().environment().clone();
-                let triple = (workspace, view, environment);
-                let previous = last_rendered.peek().clone();
-                if previous == triple {
-                    return;
-                }
+        use_effect(use_reactive((&project, &view), move |(project, view)| {
+            let environment = preparation.read().environment().clone();
+            let triple = (project, view, environment);
+            let previous = last_rendered.peek().clone();
+            if previous == triple {
+                return;
+            }
 
-                last_rendered.set(triple.clone());
-                let can_retain_sources = previous.2 == triple.2
-                    && previous.1.dependency_target() == triple.1.dependency_target();
-                let mut current_world = world.write();
-                if can_retain_sources {
-                    current_world
-                        .replace_project(triple.0.clone())
-                        .expect("Render Session input should remain a valid Typst Project");
-                } else {
-                    *current_world = compose_world(&triple.0, &triple.2, triple.1);
-                }
-                let mut renderer = renderer;
-                renderer
-                    .write()
-                    .render_world(&*current_world, triple.1.render_format());
-            },
-        ));
+            last_rendered.set(triple.clone());
+            let can_retain_sources = previous.2 == triple.2
+                && previous.1.dependency_target() == triple.1.dependency_target();
+            let mut current_world = world.write();
+            if can_retain_sources {
+                current_world
+                    .replace_project(triple.0.clone())
+                    .expect("Render Session input should remain a valid Typst Project");
+            } else {
+                *current_world = compose_world(&triple.0, &triple.2, triple.1);
+            }
+            let mut renderer = renderer;
+            renderer
+                .write()
+                .render_world(&*current_world, triple.1.render_format());
+        }));
 
         RenderSession {
             renderer,
@@ -323,11 +319,11 @@ mod hook {
     }
 
     fn compose_world(
-        workspace: &DocumentWorkspace,
+        project: &Project,
         environment: &RenderEnvironment,
         view: TypstView,
-    ) -> SandboxedWorld {
-        let builder = environment.world_builder(workspace.clone());
+    ) -> ProjectWorld {
+        let builder = environment.world_builder(project.clone());
         let builder = match view {
             TypstView::Html => builder.html(),
             TypstView::PdfFrame | TypstView::PageImages(_) => builder,

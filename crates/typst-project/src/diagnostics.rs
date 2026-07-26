@@ -8,15 +8,15 @@ use typst::{World, WorldExt};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RenderDiagnostic {
     message: String,
-    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_workspace_path"))]
-    workspace_path: Option<VirtualPath>,
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_project_path"))]
+    project_path: Option<VirtualPath>,
     source_identity: Option<RenderSourceIdentity>,
     source_range: Option<RenderSourceRange>,
 }
 
-/// Serialize a workspace path as its root-relative text.
+/// Serialize a project path as its root-relative text.
 #[cfg(feature = "serde")]
-fn serialize_workspace_path<S>(path: &Option<VirtualPath>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_project_path<S>(path: &Option<VirtualPath>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -33,8 +33,8 @@ impl RenderDiagnostic {
     }
 
     /// Return the Project Path this diagnostic points to, when available.
-    pub fn workspace_path(&self) -> Option<&VirtualPath> {
-        self.workspace_path.as_ref()
+    pub fn project_path(&self) -> Option<&VirtualPath> {
+        self.project_path.as_ref()
     }
 
     /// Return the Typst source identity this diagnostic points to, when available.
@@ -62,7 +62,7 @@ impl RenderSourceIdentity {
         self.package.as_deref()
     }
 
-    /// Return the source path within its workspace or package.
+    /// Return the source path within its project or package.
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -114,14 +114,14 @@ pub(crate) fn to_render_diagnostics(
         .into_iter()
         .map(|diagnostic| RenderDiagnostic {
             message: diagnostic.message.to_string(),
-            workspace_path: diagnostic_workspace_path(&diagnostic),
+            project_path: diagnostic_project_path(&diagnostic),
             source_identity: diagnostic_source_identity(&diagnostic),
             source_range: diagnostic_source_range(world, &diagnostic),
         })
         .collect()
 }
 
-fn diagnostic_workspace_path(diagnostic: &SourceDiagnostic) -> Option<VirtualPath> {
+fn diagnostic_project_path(diagnostic: &SourceDiagnostic) -> Option<VirtualPath> {
     let id = diagnostic.span.id()?;
     if file_id_package(id).is_some() {
         return None;

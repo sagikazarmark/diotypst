@@ -1,6 +1,6 @@
 use crate::{SAMPLE_TYPST, download_error_summary, render_error_summary};
 use diotypst::{
-    DocumentWorkspace, DownloadFormat, PageImageOptions, RenderDownloadError, render_download,
+    Project, DownloadFormat, PageImageOptions, RenderDownloadError, render_download,
     trigger_browser_download, use_typst_defaults,
 };
 use dioxus::prelude::*;
@@ -19,7 +19,7 @@ pub fn PageImagesExample() -> Element {
         button {
             class: "btn btn-primary",
             onclick: move |_| {
-                let project = DocumentWorkspace::from_source(format!(
+                let project = Project::from_source(format!(
                     "{SAMPLE_TYPST}\n#pagebreak()\nRendered on a second page."
                 ));
                 let format = DownloadFormat::PageImageArchive {

@@ -14,7 +14,7 @@ use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, World};
 
-/// Return the workspace- or package-internal path for a Typst file id.
+/// Return the project- or package-internal path for a Typst file id.
 pub(crate) fn file_id_path(id: FileId) -> String {
     id.vpath().get_without_slash().to_owned()
 }

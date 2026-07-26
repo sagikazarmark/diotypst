@@ -112,7 +112,7 @@ async fn main() {
         axum::extract::Form(form): axum::extract::Form<DemoServerDownloadForm>,
     ) -> impl IntoResponse {
         use diotypst::{
-            DocumentWorkspace, DownloadFormat, PageImageOptions, ServerRenderRequest,
+            Project, DownloadFormat, PageImageOptions, ServerRenderRequest,
             server_render_download_response,
         };
 
@@ -124,7 +124,7 @@ async fn main() {
             _ => return axum::http::StatusCode::BAD_REQUEST.into_response(),
         };
         let request = ServerRenderRequest::new(
-            DocumentWorkspace::from_source(form.source),
+            Project::from_source(form.source),
             Default::default(),
             format,
             form.filename,

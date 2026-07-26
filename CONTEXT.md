@@ -4,15 +4,15 @@ Typst rendering concepts used by this crate and its demo.
 
 ## Language
 
-**Typst Project** (`DocumentWorkspace`):
+**Typst Project** (`Project`):
 A renderable Typst document input: one root Typst entrypoint plus explicit files, assets, and data addressed by Project Paths.
-_Avoid_: Document Bundle, loose source string, resolved packages
+_Avoid_: Document Bundle, DocumentWorkspace, workspace vocabulary, loose source string, resolved packages
 
 **Root Entrypoint**:
 The Project Path that Typst treats as `World::main` for a Typst Project.
 _Avoid_: Main file embedded in a loader, ambient current document
 
-**Project File** (`WorkspaceFile`):
+**Project File** (`ProjectFile`):
 A named byte resource inside a Typst Project, addressed by a Project Path and available for includes, images, fonts, or data loading.
 _Avoid_: loose file, external asset, host file
 
@@ -40,9 +40,9 @@ _Avoid_: Environment variables, CLI args, ambient application state
 A Typst World that can be rendered directly because it supplies its root entrypoint, Typst library features, System Inputs, and the source, file, package, font, and date resources Typst may request.
 _Avoid_: Source string plus world, incomplete world
 
-**Project World** (`SandboxedWorld`):
-The crate-owned Complete Typst World built from a Typst Project, its Render Environment, explicit Typst library features, and prepared resources.
-_Avoid_: TypstWorld, generic world, WorkspaceWorld, hidden workspace renderer
+**Project World** (`ProjectWorld`):
+The crate-owned Complete Typst World built from a Typst Project, its Render Environment, explicit Typst library features, and prepared resources. Named for the Typst Project it is built from, not for the resource boundary it enforces.
+_Avoid_: SandboxedWorld, WorkspaceWorld, generic world, hidden project renderer
 
 **World Overlay**:
 A layered Typst World that supplies explicit document resources, exact resource replacements, or selected render-context overrides before delegating unresolved requests to a base Complete Typst World. Overlay precedence is explicit; it is not mutation of the base world.
@@ -132,7 +132,7 @@ _Avoid_: Ambient system fonts, hidden browser fonts
 A Dioxus component that provides Typst rendering or download behavior without prescribing visual styling or fixed markup.
 _Avoid_: Styled widget, demo-only component
 
-**World Render Flow**:
+**World Render Flow** (`use_world_render`, the `TypstWorld` component):
 The low-level rendering state, hook, or component that consumes an owned Complete Typst World and a Render Format. It owns artifact state and reactive rendering only; World Preparation and World composition belong to higher layers.
 _Avoid_: Project input parsing, package fetching, hidden World construction
 
@@ -146,7 +146,7 @@ _Avoid_: Headless render state, download action, implicit format switch
 
 **Diagnostic**:
 A Typst warning or error surfaced during rendering, ideally tied to a Typst source identity and source range. Project-built worlds may additionally map that identity to a Project Path.
-_Avoid_: Plain error string, silent render failure, workspace-only location
+_Avoid_: Plain error string, silent render failure, project-only location
 
 **Download Action**:
 A user-triggered request to obtain a PDF, Page Image, or Page Image Archive for the current Typst Project, using a current successful render or rendering on demand.

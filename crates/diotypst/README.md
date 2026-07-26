@@ -21,9 +21,9 @@ The smallest complete flow is: create a Typst Project, render it inside an expli
 ```rust
 # #[cfg(all(feature = "bundled-fonts", feature = "pdf"))]
 # {
-use diotypst::{render_pdf, RenderEnvironment, DocumentWorkspace};
+use diotypst::{render_pdf, RenderEnvironment, Project};
 
-let project = DocumentWorkspace::from_source("= Title\n\nHello from Typst.");
+let project = Project::from_source("= Title\n\nHello from Typst.");
 let environment = RenderEnvironment::builder()
     .build()
     .expect("render environment should be valid");
@@ -61,9 +61,9 @@ assert!(pdf.bytes().starts_with(b"%PDF-"));
 A Typst Project is one root Typst entrypoint plus the explicit Project Files available to that entrypoint. Rendering happens through an explicit Project World: the renderer sees only the Typst Project, prepared Package Bundles, the configured Font Set, and the configured Render Date. It does not read the host filesystem or fetch packages from the network implicitly.
 
 ```rust
-use diotypst::DocumentWorkspace;
+use diotypst::Project;
 
-let project = DocumentWorkspace::builder("main.typ")
+let project = Project::builder("main.typ")
     .source_file("main.typ", "= Main\n\n#include \"chapters/intro.typ\"")
     .source_file("chapters/intro.typ", "Included from the project.")
     .build()
@@ -114,10 +114,10 @@ Use package dependency observation as a preflight aid for cache warming or templ
 # #[cfg(feature = "html")]
 # {
 use diotypst::{
-    observe_package_dependencies, PackageDependencyTarget, RenderEnvironment, DocumentWorkspace,
+    observe_package_dependencies, PackageDependencyTarget, RenderEnvironment, Project,
 };
 
-let project = DocumentWorkspace::from_source(
+let project = Project::from_source(
     "#import \"@preview/example:1.2.3\": answer\n#answer",
 );
 let environment = RenderEnvironment::builder()
@@ -145,7 +145,7 @@ assert!(!observation.compile_succeeded());
 # {
 use diotypst::{
     prepare_packages, GatedPackages, MemoryPackages, PackageBundle, PackageDependencyTarget,
-    PackagePolicy, PreparePackagesOptions, RenderEnvironment, DocumentWorkspace,
+    PackagePolicy, PreparePackagesOptions, RenderEnvironment, Project,
 };
 
 let bundle = PackageBundle::builder("@preview/example:1.2.3".parse().expect("spec should parse"))
@@ -160,7 +160,7 @@ let source = GatedPackages::new(
     MemoryPackages::new([bundle]).expect("package source should be valid"),
     PackagePolicy::deny_all().allow("@preview/example".parse().expect("pattern should parse")),
 );
-let project = DocumentWorkspace::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
+let project = Project::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
 let environment = RenderEnvironment::builder()
     .build()
     .expect("render environment should be valid");
@@ -197,14 +197,14 @@ Use the typed helpers when the format is fixed, or `render_artifact` when a Diox
 # {
 use diotypst::{
     render_artifact, PageImageOptions, RenderArtifact, RenderEnvironment, RenderFormat,
-    DocumentWorkspace,
+    Project,
 };
 
 let environment = RenderEnvironment::builder()
     .build()
     .expect("render environment should be valid");
 
-let html_project = DocumentWorkspace::from_source("= Title\n\nHello from Typst.");
+let html_project = Project::from_source("= Title\n\nHello from Typst.");
 let html_artifact = render_artifact(&html_project, &environment, RenderFormat::Html)
     .expect("HTML render should succeed");
 let RenderArtifact::Html(html) = html_artifact else {
@@ -214,7 +214,7 @@ let RenderArtifact::Html(html) = html_artifact else {
 assert!(html.as_str().starts_with("<!DOCTYPE html>"));
 assert!(html.as_str().contains("<p>Hello from Typst.</p>"));
 
-let page_project = DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page.");
+let page_project = Project::from_source("First page.\n#pagebreak()\nSecond page.");
 let page_artifact = render_artifact(
     &page_project,
     &environment,
@@ -241,9 +241,9 @@ Use the raw world helpers when the application already owns a complete Typst `Wo
 ```rust
 # #[cfg(all(feature = "bundled-fonts", feature = "html"))]
 # {
-use diotypst::{render_html_world, RenderEnvironment, DocumentWorkspace, WorldOverlay};
+use diotypst::{render_html_world, RenderEnvironment, Project, WorldOverlay};
 
-let project = DocumentWorkspace::builder("main.typ")
+let project = Project::builder("main.typ")
     .source_file("main.typ", "#include \"content.typ\"")
     .source_file("content.typ", "Base content.")
     .build()
@@ -277,7 +277,7 @@ assert!(html.as_str().contains("<p>Overlay content.</p>"));
 # {
 use diotypst::{
     render_artifact, DownloadError, DownloadFile, PageImageOptions, RenderEnvironment,
-    RenderFormat, RenderState, RenderStatus, DocumentWorkspace,
+    RenderFormat, RenderState, RenderStatus, Project,
 };
 
 let environment = RenderEnvironment::builder()
@@ -286,12 +286,12 @@ let environment = RenderEnvironment::builder()
 
 let mut pdf_state = RenderState::new();
 pdf_state.update(render_artifact(
-    &DocumentWorkspace::from_source("= Current\n\nStill downloadable."),
+    &Project::from_source("= Current\n\nStill downloadable."),
     &environment,
     RenderFormat::Pdf,
 ));
 pdf_state.update(render_artifact(
-    &DocumentWorkspace::from_source("#let broken ="),
+    &Project::from_source("#let broken ="),
     &environment,
     RenderFormat::Pdf,
 ));
@@ -305,7 +305,7 @@ assert!(pdf_download.bytes().starts_with(b"%PDF-"));
 
 let mut page_state = RenderState::new();
 page_state.update(render_artifact(
-    &DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page."),
+    &Project::from_source("First page.\n#pagebreak()\nSecond page."),
     &environment,
     RenderFormat::PageImages(PageImageOptions::default()),
 ));
@@ -318,7 +318,7 @@ assert!(page_download.bytes().starts_with(b"PK\x03\x04"));
 
 let mut html_state = RenderState::new();
 html_state.update(render_artifact(
-    &DocumentWorkspace::from_source("= Preview Only"),
+    &Project::from_source("= Preview Only"),
     &environment,
     RenderFormat::Html,
 ));
@@ -337,9 +337,9 @@ Enable the `pack` feature (wasm-safe) to read and write Project Packs: single-fi
 ```rust
 # #[cfg(all(feature = "bundled-fonts", feature = "html", feature = "pack"))]
 # {
-use diotypst::{render_html, DownloadFile, PackageBundle, ProjectPack, DocumentWorkspace};
+use diotypst::{render_html, DownloadFile, PackageBundle, ProjectPack, Project};
 
-let project = DocumentWorkspace::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
+let project = Project::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
 let bundle = PackageBundle::builder("@preview/example:1.2.3".parse().expect("spec should parse"))
     .file(
         "typst.toml",
@@ -436,7 +436,7 @@ Enable the `server` feature to mount an Axum-compatible Server Render Route at `
 let router = axum::Router::new().merge(diotypst::server_render_download_router());
 ```
 
-The route accepts a `ServerRenderRequest` containing a Typst Project (`DocumentWorkspace`), a Render Environment, the requested download format, and a suggested filename; with the `serde` feature the project and environment are validated while deserializing the request. It renders through an explicit Project World and returns downloadable PDF (`application/pdf`), Page Image (`image/png`), or Page Image Archive (`application/zip`) responses. HTML artifacts are rejected as unsupported downloads.
+The route accepts a `ServerRenderRequest` containing a Typst Project, a Render Environment, the requested download format, and a suggested filename; with the `serde` feature the project and environment are validated while deserializing the request. It renders through an explicit Project World and returns downloadable PDF (`application/pdf`), Page Image (`image/png`), or Page Image Archive (`application/zip`) responses. HTML artifacts are rejected as unsupported downloads.
 
 ## Demo
 

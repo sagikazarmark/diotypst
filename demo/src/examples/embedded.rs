@@ -1,4 +1,4 @@
-use diotypst::{DocumentWorkspace, RenderFormat, use_typst_defaults, use_typst_render};
+use diotypst::{Project, RenderFormat, use_typst_defaults, use_typst_render};
 use dioxus::prelude::*;
 
 use super::TypstPreview;
@@ -21,7 +21,7 @@ pub fn EmbeddedExample() -> Element {
                     button {
                         class: "btn btn-primary",
                         onclick: move |_| {
-                            let project = DocumentWorkspace::from_source(EMBEDDED_PACKAGE_TEMPLATE);
+                            let project = Project::from_source(EMBEDDED_PACKAGE_TEMPLATE);
                             let environment = base_environment
                                 .to_builder()
                                 .package_bundle(embedded_demo_package())

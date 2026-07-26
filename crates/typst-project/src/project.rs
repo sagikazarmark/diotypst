@@ -2,24 +2,24 @@ use std::collections::HashSet;
 use typst::syntax::VirtualPath;
 use typst_package_source::parse_file_path;
 
-/// Parse a Typst path for use inside a workspace.
+/// Parse a Typst path for use inside a project.
 ///
 /// This accepts everything [`VirtualPath::new`] accepts except the bare root,
 /// which cannot name a file.
-pub(crate) fn parse_workspace_path(path: &str) -> Result<VirtualPath, WorkspaceValidationError> {
-    parse_file_path(path).ok_or_else(|| WorkspaceValidationError::InvalidPath {
+pub(crate) fn parse_project_path(path: &str) -> Result<VirtualPath, ProjectValidationError> {
+    parse_file_path(path).ok_or_else(|| ProjectValidationError::InvalidPath {
         path: path.to_owned(),
     })
 }
 
 /// A renderable Typst unit with one root entrypoint and explicit files.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DocumentWorkspace {
+pub struct Project {
     root_path: VirtualPath,
-    files: Vec<WorkspaceFile>,
+    files: Vec<ProjectFile>,
 }
 
-impl DocumentWorkspace {
+impl Project {
     /// Create a Typst Project from a single Typst source string.
     pub fn from_source(source: impl Into<String>) -> Self {
         Self::from_source_file("main.typ", source).expect("default root path is valid")
@@ -29,9 +29,9 @@ impl DocumentWorkspace {
     pub fn from_source_file(
         root_path: impl Into<String>,
         source: impl Into<String>,
-    ) -> Result<Self, WorkspaceValidationError> {
-        let root_path = parse_workspace_path(&root_path.into())?;
-        let root_file = WorkspaceFile::source(root_path.get_without_slash(), source)?;
+    ) -> Result<Self, ProjectValidationError> {
+        let root_path = parse_project_path(&root_path.into())?;
+        let root_file = ProjectFile::source(root_path.get_without_slash(), source)?;
 
         Self {
             root_path,
@@ -43,18 +43,18 @@ impl DocumentWorkspace {
     /// Create a Typst Project from checked Project Files.
     pub fn new(
         root_path: impl Into<String>,
-        files: impl IntoIterator<Item = WorkspaceFile>,
-    ) -> Result<Self, WorkspaceValidationError> {
+        files: impl IntoIterator<Item = ProjectFile>,
+    ) -> Result<Self, ProjectValidationError> {
         Self {
-            root_path: parse_workspace_path(&root_path.into())?,
+            root_path: parse_project_path(&root_path.into())?,
             files: files.into_iter().collect(),
         }
         .validated()
     }
 
     /// Start building a Typst Project with the provided root entrypoint.
-    pub fn builder(root_path: impl Into<String>) -> DocumentWorkspaceBuilder {
-        DocumentWorkspaceBuilder {
+    pub fn builder(root_path: impl Into<String>) -> ProjectBuilder {
+        ProjectBuilder {
             root_path: root_path.into(),
             files: Vec::new(),
         }
@@ -76,7 +76,7 @@ impl DocumentWorkspace {
     }
 
     /// Return the explicit files in this Typst Project.
-    pub fn files(&self) -> &[WorkspaceFile] {
+    pub fn files(&self) -> &[ProjectFile] {
         &self.files
     }
 
@@ -86,7 +86,7 @@ impl DocumentWorkspace {
     }
 
     /// Add or replace exact Project Files while preserving this project's root entrypoint.
-    pub fn overlay_files(mut self, files: impl IntoIterator<Item = WorkspaceFile>) -> Self {
+    pub fn overlay_files(mut self, files: impl IntoIterator<Item = ProjectFile>) -> Self {
         for overlay_file in files {
             if let Some(file) = self
                 .files
@@ -103,12 +103,12 @@ impl DocumentWorkspace {
     }
 
     /// Validate that this Typst Project can be rendered as a coherent unit.
-    pub fn validate(&self) -> Result<(), WorkspaceValidationError> {
+    pub fn validate(&self) -> Result<(), ProjectValidationError> {
         let mut paths = HashSet::new();
 
         for file in &self.files {
             if !paths.insert(file.path.get_without_slash()) {
-                return Err(WorkspaceValidationError::DuplicatePath {
+                return Err(ProjectValidationError::DuplicatePath {
                     path: file.path.get_without_slash().to_owned(),
                 });
             }
@@ -118,7 +118,7 @@ impl DocumentWorkspace {
             .file_bytes(self.root_path.get_without_slash())
             .is_none()
         {
-            return Err(WorkspaceValidationError::MissingRoot {
+            return Err(ProjectValidationError::MissingRoot {
                 root: self.root_path.get_without_slash().to_owned(),
             });
         }
@@ -126,7 +126,7 @@ impl DocumentWorkspace {
         Ok(())
     }
 
-    fn validated(self) -> Result<Self, WorkspaceValidationError> {
+    fn validated(self) -> Result<Self, ProjectValidationError> {
         self.validate()?;
 
         Ok(self)
@@ -135,13 +135,13 @@ impl DocumentWorkspace {
 
 /// Builder for a Typst Project.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DocumentWorkspaceBuilder {
+pub struct ProjectBuilder {
     root_path: String,
     files: Vec<(String, Vec<u8>)>,
 }
 
-impl DocumentWorkspaceBuilder {
-    /// Add a UTF-8 Typst source file to this workspace.
+impl ProjectBuilder {
+    /// Add a UTF-8 Typst source file to this project.
     pub fn source_file(self, path: impl Into<String>, source: impl Into<String>) -> Self {
         self.file(path, source.into().into_bytes())
     }
@@ -153,42 +153,42 @@ impl DocumentWorkspaceBuilder {
     }
 
     /// Build and validate the Typst Project.
-    pub fn build(self) -> Result<DocumentWorkspace, WorkspaceValidationError> {
-        let root_path = parse_workspace_path(&self.root_path)?;
+    pub fn build(self) -> Result<Project, ProjectValidationError> {
+        let root_path = parse_project_path(&self.root_path)?;
         let files = self
             .files
             .into_iter()
             .map(|(path, bytes)| {
-                Ok(WorkspaceFile {
-                    path: parse_workspace_path(&path)?,
+                Ok(ProjectFile {
+                    path: parse_project_path(&path)?,
                     bytes,
                 })
             })
-            .collect::<Result<Vec<_>, WorkspaceValidationError>>()?;
+            .collect::<Result<Vec<_>, ProjectValidationError>>()?;
 
-        let workspace = DocumentWorkspace { root_path, files };
+        let project = Project { root_path, files };
 
-        workspace.validate()?;
+        project.validate()?;
 
-        Ok(workspace)
+        Ok(project)
     }
 }
 
 /// A named byte resource inside a Typst Project.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WorkspaceFile {
+pub struct ProjectFile {
     path: VirtualPath,
     bytes: Vec<u8>,
 }
 
-impl WorkspaceFile {
+impl ProjectFile {
     /// Create a Project File from bytes.
     pub fn new(
         path: impl Into<String>,
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<Self, WorkspaceValidationError> {
+    ) -> Result<Self, ProjectValidationError> {
         Ok(Self {
-            path: parse_workspace_path(&path.into())?,
+            path: parse_project_path(&path.into())?,
             bytes: bytes.into(),
         })
     }
@@ -197,7 +197,7 @@ impl WorkspaceFile {
     pub fn source(
         path: impl Into<String>,
         source: impl Into<String>,
-    ) -> Result<Self, WorkspaceValidationError> {
+    ) -> Result<Self, ProjectValidationError> {
         Self::new(path, source.into().into_bytes())
     }
 
@@ -213,18 +213,18 @@ impl WorkspaceFile {
 }
 
 #[cfg(feature = "serde")]
-impl serde::Serialize for WorkspaceFile {
+impl serde::Serialize for ProjectFile {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         #[derive(serde::Serialize)]
-        struct WorkspaceFileWire<'a> {
+        struct ProjectFileWire<'a> {
             path: &'a str,
             bytes: &'a [u8],
         }
 
-        WorkspaceFileWire {
+        ProjectFileWire {
             path: self.path.get_without_slash(),
             bytes: &self.bytes,
         }
@@ -233,18 +233,18 @@ impl serde::Serialize for WorkspaceFile {
 }
 
 #[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for WorkspaceFile {
+impl<'de> serde::Deserialize<'de> for ProjectFile {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         #[derive(serde::Deserialize)]
-        struct WorkspaceFileFields {
+        struct ProjectFileFields {
             path: String,
             bytes: Vec<u8>,
         }
 
-        let fields = <WorkspaceFileFields as serde::Deserialize>::deserialize(deserializer)?;
+        let fields = <ProjectFileFields as serde::Deserialize>::deserialize(deserializer)?;
 
         Self::new(fields.path, fields.bytes)
             .map_err(|error| serde::de::Error::custom(format!("invalid Project File: {error:?}")))
@@ -252,18 +252,18 @@ impl<'de> serde::Deserialize<'de> for WorkspaceFile {
 }
 
 #[cfg(feature = "serde")]
-impl serde::Serialize for DocumentWorkspace {
+impl serde::Serialize for Project {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         #[derive(serde::Serialize)]
-        struct DocumentWorkspaceWire<'a> {
+        struct ProjectWire<'a> {
             root_path: &'a str,
-            files: &'a [WorkspaceFile],
+            files: &'a [ProjectFile],
         }
 
-        DocumentWorkspaceWire {
+        ProjectWire {
             root_path: self.root_path.get_without_slash(),
             files: &self.files,
         }
@@ -272,18 +272,18 @@ impl serde::Serialize for DocumentWorkspace {
 }
 
 #[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for DocumentWorkspace {
+impl<'de> serde::Deserialize<'de> for Project {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         #[derive(serde::Deserialize)]
-        struct DocumentWorkspaceFields {
+        struct ProjectFields {
             root_path: String,
-            files: Vec<WorkspaceFile>,
+            files: Vec<ProjectFile>,
         }
 
-        let fields = <DocumentWorkspaceFields as serde::Deserialize>::deserialize(deserializer)?;
+        let fields = <ProjectFields as serde::Deserialize>::deserialize(deserializer)?;
 
         Self::new(fields.root_path, fields.files)
             .map_err(|error| serde::de::Error::custom(format!("invalid Typst Project: {error:?}")))
@@ -292,7 +292,7 @@ impl<'de> serde::Deserialize<'de> for DocumentWorkspace {
 
 /// A validation failure for a Typst Project.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum WorkspaceValidationError {
+pub enum ProjectValidationError {
     /// A Project Path is not root-relative inside the Typst Project.
     InvalidPath { path: String },
 

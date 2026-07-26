@@ -1,6 +1,6 @@
 use crate::{
-    DocumentWorkspace, PageImage, PageImageOptions, PageImagesArtifact, PdfArtifact,
-    RenderArtifact, RenderEnvironment, RenderError, RenderFormat, RenderState, render_artifact,
+    PageImage, PageImageOptions, PageImagesArtifact, PdfArtifact, Project, RenderArtifact,
+    RenderEnvironment, RenderError, RenderFormat, RenderState, render_artifact,
 };
 
 /// A downloadable output format for a Download Action.
@@ -69,12 +69,12 @@ impl From<DownloadError> for RenderDownloadError {
 /// for the same inputs. Rendering dispatches through [`render_artifact`]; packaging
 /// (page selection, Page Image Archive assembly) happens here.
 pub fn render_download(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
     format: DownloadFormat,
     filename: impl Into<String>,
 ) -> Result<DownloadFile, RenderDownloadError> {
-    let artifact = render_artifact(workspace, environment, format.render_format())?;
+    let artifact = render_artifact(project, environment, format.render_format())?;
 
     let file = match (format, artifact) {
         (DownloadFormat::Pdf, RenderArtifact::Pdf(pdf)) => DownloadFile::from_pdf(filename, &pdf),

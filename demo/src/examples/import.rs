@@ -9,8 +9,8 @@ use crate::components::{
     ControlEmphasis, DemoPane, DemoSurface, FilePickerButton, FilePickerKind, StatusLine,
 };
 use crate::{
-    build_imported_workspace, file_import_error_summary, typst_root_candidates,
-    workspace_validation_summary,
+    build_imported_project, file_import_error_summary, typst_root_candidates,
+    project_validation_summary,
 };
 
 /// Import browser file selections through the shared Dioxus file abstraction:
@@ -112,7 +112,7 @@ pub fn ImportExample() -> Element {
                             class: "btn btn-sm btn-primary mt-3",
                             onclick: move |_| {
                                 let project =
-                                    build_imported_workspace(root_path.read().clone(), files.read().iter());
+                                    build_imported_project(root_path.read().clone(), files.read().iter());
                                 let font_set = base_environment
                                     .font_set()
                                     .clone()
@@ -132,7 +132,7 @@ pub fn ImportExample() -> Element {
                                             .expect("Project World should be valid");
                                         renderer.write().render_world(&world, RenderFormat::Html)
                                     }
-                                    Err(error) => message.set(workspace_validation_summary(&error)),
+                                    Err(error) => message.set(project_validation_summary(&error)),
                                 }
                             },
                             "Render the imported project"

@@ -11,9 +11,7 @@ use crate::diagnostics::RenderDiagnostic;
 #[cfg(any(feature = "pdf", feature = "page-images", feature = "html"))]
 use crate::diagnostics::to_render_diagnostics;
 use crate::observe::RecordingWorld;
-use crate::{
-    DocumentWorkspace, PackageSpec, RenderEnvironment, SandboxedWorld, WorkspaceValidationError,
-};
+use crate::{PackageSpec, Project, ProjectValidationError, ProjectWorld, RenderEnvironment};
 use typst::World;
 #[cfg(any(feature = "pdf", feature = "page-images", feature = "html"))]
 use typst::diag::SourceDiagnostic;
@@ -31,11 +29,11 @@ use typst_layout::PagedDocument;
 /// Render a Typst Project to a PDF artifact.
 #[cfg(feature = "pdf")]
 pub fn render_pdf(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
 ) -> Result<PdfArtifact, RenderError> {
-    let world = SandboxedWorld::new(workspace.clone(), environment.clone())
-        .map_err(RenderError::Workspace)?;
+    let world =
+        ProjectWorld::new(project.clone(), environment.clone()).map_err(RenderError::Project)?;
     render_pdf_world(&world)
 }
 
@@ -58,12 +56,12 @@ pub fn render_pdf_world(world: &dyn World) -> Result<PdfArtifact, RenderError> {
 /// Render a Typst Project to one PNG Page Image per rendered Typst page.
 #[cfg(feature = "page-images")]
 pub fn render_page_images(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
     options: PageImageOptions,
 ) -> Result<PageImagesArtifact, RenderError> {
-    let world = SandboxedWorld::new(workspace.clone(), environment.clone())
-        .map_err(RenderError::Workspace)?;
+    let world =
+        ProjectWorld::new(project.clone(), environment.clone()).map_err(RenderError::Project)?;
     render_page_images_world(&world, options)
 }
 
@@ -103,11 +101,11 @@ pub fn render_page_images_world(
 /// Render a Typst Project to a self-contained semantic HTML artifact.
 #[cfg(feature = "html")]
 pub fn render_html(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
 ) -> Result<HtmlArtifact, RenderError> {
-    let world = SandboxedWorld::for_html(workspace.clone(), environment.clone())
-        .map_err(RenderError::Workspace)?;
+    let world = ProjectWorld::for_html(project.clone(), environment.clone())
+        .map_err(RenderError::Project)?;
     render_html_world(&world)
 }
 
@@ -133,19 +131,19 @@ pub fn render_html_world(world: &dyn World) -> Result<HtmlArtifact, RenderError>
     allow(unused_variables)
 )]
 pub fn render_artifact(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
     format: RenderFormat,
 ) -> Result<RenderArtifact, RenderError> {
     match format {
         #[cfg(feature = "pdf")]
-        RenderFormat::Pdf => render_pdf(workspace, environment).map(RenderArtifact::Pdf),
+        RenderFormat::Pdf => render_pdf(project, environment).map(RenderArtifact::Pdf),
         #[cfg(feature = "page-images")]
         RenderFormat::PageImages(options) => {
-            render_page_images(workspace, environment, options).map(RenderArtifact::PageImages)
+            render_page_images(project, environment, options).map(RenderArtifact::PageImages)
         }
         #[cfg(feature = "html")]
-        RenderFormat::Html => render_html(workspace, environment).map(RenderArtifact::Html),
+        RenderFormat::Html => render_html(project, environment).map(RenderArtifact::Html),
         #[allow(unreachable_patterns)]
         format => Err(RenderError::UnsupportedFormat { format }),
     }
@@ -225,18 +223,17 @@ impl PackageDependencyObservation {
 /// build: the Paged target needs the `pdf` or `page-images` feature, the Html target
 /// needs `html`. Absent backends report [`RenderError::UnsupportedTarget`].
 pub fn observe_package_dependencies(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
     target: PackageDependencyTarget,
 ) -> Result<PackageDependencyObservation, RenderError> {
     let world = match target {
         PackageDependencyTarget::Paged => {
-            SandboxedWorld::new(workspace.clone(), environment.clone())
-                .map_err(RenderError::Workspace)?
+            ProjectWorld::new(project.clone(), environment.clone()).map_err(RenderError::Project)?
         }
         PackageDependencyTarget::Html => {
-            SandboxedWorld::for_html(workspace.clone(), environment.clone())
-                .map_err(RenderError::Workspace)?
+            ProjectWorld::for_html(project.clone(), environment.clone())
+                .map_err(RenderError::Project)?
         }
     };
 
@@ -276,7 +273,7 @@ pub fn observe_package_dependencies_world(
 #[derive(Clone, Debug, PartialEq)]
 pub enum RenderError {
     /// The Typst Project was not valid enough to render.
-    Workspace(WorkspaceValidationError),
+    Project(ProjectValidationError),
 
     /// Typst reported diagnostics while compiling or exporting.
     Diagnostics(Vec<RenderDiagnostic>),
@@ -364,14 +361,13 @@ mod tests {
     #[cfg(feature = "pdf")]
     #[test]
     fn missing_fonts_fail_rendering_via_typsts_warning_message() {
-        let workspace =
-            DocumentWorkspace::from_source("#set text(font: \"no-such-font-family\")\nHello");
+        let project = Project::from_source("#set text(font: \"no-such-font-family\")\nHello");
         let environment = RenderEnvironment::builder()
             .font_set(FontSet::empty())
             .build()
             .expect("environment should build");
 
-        let error = render_pdf(&workspace, &environment)
+        let error = render_pdf(&project, &environment)
             .expect_err("rendering without the requested font should fail");
 
         let RenderError::Diagnostics(diagnostics) = error else {
@@ -390,10 +386,10 @@ mod tests {
     #[cfg(not(feature = "pdf"))]
     #[test]
     fn absent_pdf_backend_reports_an_unsupported_format() {
-        let workspace = DocumentWorkspace::from_source("Hello");
+        let project = Project::from_source("Hello");
         let environment = RenderEnvironment::default();
 
-        let error = render_artifact(&workspace, &environment, RenderFormat::Pdf)
+        let error = render_artifact(&project, &environment, RenderFormat::Pdf)
             .expect_err("the pdf feature is off, so PDF rendering must be unavailable");
 
         assert!(matches!(

@@ -1,4 +1,4 @@
-use diotypst::{DocumentWorkspace, RenderFormat, use_typst_defaults, use_typst_render};
+use diotypst::{Project, RenderFormat, use_typst_defaults, use_typst_render};
 use dioxus::prelude::*;
 
 use super::TypstPreview;
@@ -19,7 +19,7 @@ pub fn MultiFileExample() -> Element {
                     button {
                         class: "btn btn-primary",
                         onclick: move |_| {
-                            let project = DocumentWorkspace::builder("main.typ")
+                            let project = Project::builder("main.typ")
                                 .source_file(
                                     "main.typ",
                                     "#set page(width: 120mm, height: auto, margin: 10mm)\n\n= Main\n\n#include \"chapters/intro.typ\"",

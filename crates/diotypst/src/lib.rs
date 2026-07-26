@@ -60,10 +60,6 @@ pub use session::{RenderSessionOptions, TypstInput, TypstView};
 pub use typst_project::PackageArchiveError;
 #[cfg(feature = "system-downloader")]
 pub use typst_project::SystemDownloader;
-pub use typst_project::{
-    DocumentWorkspace, DocumentWorkspaceBuilder, VirtualPath, WorkspaceFile,
-    WorkspaceValidationError,
-};
 #[cfg(feature = "download")]
 pub use typst_project::{
     Downloader, Progress, ProgressDownloader, ProgressReporter, RegistryPackages,
@@ -99,8 +95,11 @@ pub use typst_project::{
     PackagePreparation, PrepareEvent, PreparePackagesOptions, prepare_packages,
     prepare_packages_with_progress,
 };
+pub use typst_project::{
+    Project, ProjectBuilder, ProjectFile, ProjectValidationError, VirtualPath,
+};
+pub use typst_project::{ProjectWorld, ProjectWorldBuilder, WorldOverlay};
 pub use typst_project::{RenderDiagnostic, RenderSourceIdentity, RenderSourceRange};
-pub use typst_project::{SandboxedWorld, SandboxedWorldBuilder, WorldOverlay};
 #[cfg(feature = "vendor")]
 pub use typst_project::{VendorError, vendor_package_archives};
 #[cfg(feature = "html")]

@@ -1,13 +1,12 @@
 use super::{
-    DocumentWorkspace, DownloadError, DownloadFile, DownloadFormat, FontSet, HeadlessRender,
-    MemoryPackages, PackageBundle, PackageBundleError, PackageDependencyTarget,
-    PackageResolveError, PackageSpec, PageImageOptions, RenderArtifact, RenderDate,
-    RenderDownloadError, RenderEnvironment, RenderEnvironmentError, RenderError, RenderFormat,
-    RenderState, RenderStatus, SandboxedWorld, ServerRenderRequest, SyncPackageSource,
-    WorkspaceFile, WorkspaceValidationError, WorldOverlay, observe_package_dependencies,
-    observe_package_dependencies_world, render_artifact, render_artifact_world, render_download,
-    render_html, render_html_world, render_page_images, render_page_images_world, render_pdf,
-    render_pdf_world,
+    DownloadError, DownloadFile, DownloadFormat, FontSet, HeadlessRender, MemoryPackages,
+    PackageBundle, PackageBundleError, PackageDependencyTarget, PackageResolveError, PackageSpec,
+    PageImageOptions, Project, ProjectFile, ProjectValidationError, ProjectWorld, RenderArtifact,
+    RenderDate, RenderDownloadError, RenderEnvironment, RenderEnvironmentError, RenderError,
+    RenderFormat, RenderState, RenderStatus, ServerRenderRequest, SyncPackageSource, WorldOverlay,
+    observe_package_dependencies, observe_package_dependencies_world, render_artifact,
+    render_artifact_world, render_download, render_html, render_html_world, render_page_images,
+    render_page_images_world, render_pdf, render_pdf_world,
 };
 use std::str::FromStr;
 use typst::text::FontInfo;
@@ -16,14 +15,14 @@ const README: &str = include_str!("../README.md");
 
 // Doctests execute README examples; these checks protect issue #11's ordering and visibility requirements.
 #[test]
-fn readme_starts_with_a_complete_document_workspace_render_flow() {
+fn readme_starts_with_a_complete_document_project_render_flow() {
     let first_rust_example = README
         .split("```rust\n")
         .nth(1)
         .and_then(|example| example.split("\n```").next())
         .expect("README should include a Rust quickstart example");
 
-    assert!(first_rust_example.contains("DocumentWorkspace::from_source"));
+    assert!(first_rust_example.contains("Project::from_source"));
     assert!(first_rust_example.contains("RenderEnvironment::builder()"));
     assert!(first_rust_example.contains("render_pdf("));
     assert!(first_rust_example.contains("starts_with(b\"%PDF-\")"));
@@ -45,153 +44,153 @@ fn readme_keeps_render_constraints_visible() {
 
 #[test]
 fn typst_project_alias_builds_the_existing_project_model() {
-    let project = DocumentWorkspace::from_source("= Title");
+    let project = Project::from_source("= Title");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
     assert_eq!(project.root_path().get_without_slash(), "main.typ");
     assert_eq!(project.file_bytes("main.typ"), Some("= Title".as_bytes()));
-    SandboxedWorld::new(project, environment).expect("project world should be valid");
+    ProjectWorld::new(project, environment).expect("project world should be valid");
 }
 
 #[test]
-fn source_text_creates_a_valid_document_workspace() {
-    let workspace = DocumentWorkspace::from_source("= Title");
+fn source_text_creates_a_valid_document_project() {
+    let project = Project::from_source("= Title");
 
-    assert_eq!(workspace.root_path().get_without_slash(), "main.typ");
-    assert_eq!(workspace.file_bytes("main.typ"), Some("= Title".as_bytes()));
-    assert!(workspace.validate().is_ok());
+    assert_eq!(project.root_path().get_without_slash(), "main.typ");
+    assert_eq!(project.file_bytes("main.typ"), Some("= Title".as_bytes()));
+    assert!(project.validate().is_ok());
 }
 
 #[test]
-fn custom_root_source_creates_a_valid_document_workspace() {
-    let workspace = DocumentWorkspace::from_source_file("chapters/intro.typ", "= Intro")
+fn custom_root_source_creates_a_valid_document_project() {
+    let project = Project::from_source_file("chapters/intro.typ", "= Intro")
         .expect("custom root source should be valid");
 
     assert_eq!(
-        workspace.root_path().get_without_slash(),
+        project.root_path().get_without_slash(),
         "chapters/intro.typ"
     );
     assert_eq!(
-        workspace.file_bytes("chapters/intro.typ"),
+        project.file_bytes("chapters/intro.typ"),
         Some("= Intro".as_bytes())
     );
 }
 
 #[test]
-fn checked_workspace_files_build_a_document_workspace() {
-    let root = WorkspaceFile::source("main.typ", "#include \"chapter.typ\"")
+fn checked_project_files_build_a_document_project() {
+    let root = ProjectFile::source("main.typ", "#include \"chapter.typ\"")
         .expect("root path should be valid");
     let chapter =
-        WorkspaceFile::source("chapter.typ", "= Chapter").expect("chapter path should be valid");
+        ProjectFile::source("chapter.typ", "= Chapter").expect("chapter path should be valid");
 
-    let workspace = DocumentWorkspace::new("main.typ", [root, chapter])
-        .expect("checked files should build a valid workspace");
+    let project = Project::new("main.typ", [root, chapter])
+        .expect("checked files should build a valid project");
 
-    assert_eq!(workspace.files().len(), 2);
-    assert!(workspace.contains_path("./chapter.typ"));
+    assert_eq!(project.files().len(), 2);
+    assert!(project.contains_path("./chapter.typ"));
 }
 
 #[test]
-fn workspace_validation_requires_the_root_entrypoint_to_exist() {
-    let error = DocumentWorkspace::builder("main.typ")
+fn project_validation_requires_the_root_entrypoint_to_exist() {
+    let error = Project::builder("main.typ")
         .source_file("chapter.typ", "= Chapter")
         .build()
-        .expect_err("workspace without its root entrypoint should fail validation");
+        .expect_err("project without its root entrypoint should fail validation");
 
     assert_eq!(
         error,
-        WorkspaceValidationError::MissingRoot {
+        ProjectValidationError::MissingRoot {
             root: "main.typ".to_owned(),
         }
     );
 }
 
 #[test]
-fn workspace_validation_rejects_paths_that_escape_the_workspace_sandbox() {
-    let error = DocumentWorkspace::builder("main.typ")
+fn project_validation_rejects_paths_that_escape_the_project_root() {
+    let error = Project::builder("main.typ")
         .source_file("../secret.typ", "= Title")
         .build()
-        .expect_err("workspace paths must stay inside the sandbox");
+        .expect_err("project paths must stay inside the project root");
 
     assert_eq!(
         error,
-        WorkspaceValidationError::InvalidPath {
+        ProjectValidationError::InvalidPath {
             path: "../secret.typ".to_owned(),
         }
     );
 }
 
 #[test]
-fn workspace_paths_normalize_rooted_paths() {
-    let workspace = DocumentWorkspace::builder("/main.typ")
+fn project_paths_normalize_rooted_paths() {
+    let project = Project::builder("/main.typ")
         .source_file("main.typ", "= Title")
         .build()
-        .expect("rooted paths should normalize to workspace paths");
+        .expect("rooted paths should normalize to project paths");
 
-    assert_eq!(workspace.root_path().get_without_slash(), "main.typ");
+    assert_eq!(project.root_path().get_without_slash(), "main.typ");
 }
 
 #[test]
-fn workspace_validation_rejects_empty_paths() {
-    let error = DocumentWorkspace::builder("")
+fn project_validation_rejects_empty_paths() {
+    let error = Project::builder("")
         .source_file("main.typ", "= Title")
         .build()
-        .expect_err("empty workspace paths should fail validation");
+        .expect_err("empty project paths should fail validation");
 
     assert_eq!(
         error,
-        WorkspaceValidationError::InvalidPath {
+        ProjectValidationError::InvalidPath {
             path: "".to_owned(),
         }
     );
 }
 
 #[test]
-fn workspace_validation_rejects_duplicate_workspace_paths() {
-    let error = DocumentWorkspace::builder("main.typ")
+fn project_validation_rejects_duplicate_project_paths() {
+    let error = Project::builder("main.typ")
         .source_file("main.typ", "= First")
         .source_file("main.typ", "= Second")
         .build()
-        .expect_err("duplicate workspace paths should fail validation");
+        .expect_err("duplicate project paths should fail validation");
 
     assert_eq!(
         error,
-        WorkspaceValidationError::DuplicatePath {
+        ProjectValidationError::DuplicatePath {
             path: "main.typ".to_owned(),
         }
     );
 }
 
 #[test]
-fn binary_workspace_files_are_retrievable_by_normalized_path() {
-    let workspace = DocumentWorkspace::builder("main.typ")
+fn binary_project_files_are_retrievable_by_normalized_path() {
+    let project = Project::builder("main.typ")
         .source_file("main.typ", r#"#image("assets/logo.png")"#)
         .file("assets/./logo.png", vec![0x89, 0x50, 0x4e, 0x47])
         .build()
-        .expect("workspace should be valid");
+        .expect("project should be valid");
 
     assert_eq!(
-        workspace.file_bytes("assets/logo.png"),
+        project.file_bytes("assets/logo.png"),
         Some(&[0x89, 0x50, 0x4e, 0x47][..])
     );
 }
 
 #[test]
-fn document_workspace_overlay_files_replace_exact_paths() {
-    let base = DocumentWorkspace::builder("main.typ")
+fn document_project_overlay_files_replace_exact_paths() {
+    let base = Project::builder("main.typ")
         .source_file("main.typ", "#include \"content.typ\"")
         .source_file("content.typ", "Base")
         .build()
-        .expect("base workspace should be valid");
+        .expect("base project should be valid");
     let overlay =
-        WorkspaceFile::source("./content.typ", "Overlay").expect("overlay path should be valid");
+        ProjectFile::source("./content.typ", "Overlay").expect("overlay path should be valid");
 
-    let workspace = base.overlay_files([overlay]);
+    let project = base.overlay_files([overlay]);
 
     assert_eq!(
-        workspace.file_bytes("content.typ"),
+        project.file_bytes("content.typ"),
         Some("Overlay".as_bytes())
     );
 }
@@ -245,7 +244,7 @@ fn package_bundle_rejects_paths_that_escape_the_bundle() {
     let error = PackageBundle::builder(spec)
         .file("../src/lib.typ", b"#let answer = 42".to_vec())
         .build()
-        .expect_err("package bundle paths must be root-relative and sandboxed");
+        .expect_err("package bundle paths must be root-relative and contained");
 
     assert_eq!(
         error,
@@ -344,11 +343,10 @@ fn resolved_package_bundles_build_render_environment_for_package_imports() {
         )
         .build()
         .expect("render environment should accept resolved bundle");
-    let workspace =
-        DocumentWorkspace::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
+    let project = Project::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
 
-    let html = render_html(&workspace, &environment)
-        .expect("resolved package import should render through the sandbox");
+    let html = render_html(&project, &environment)
+        .expect("resolved package import should render through the project world");
 
     assert!(
         html.as_str()
@@ -358,13 +356,12 @@ fn resolved_package_bundles_build_render_environment_for_package_imports() {
 
 #[test]
 fn rendering_package_import_fails_when_bundle_was_not_resolved() {
-    let workspace =
-        DocumentWorkspace::from_source("#import \"@preview/missing:1.0.0\": answer\n#answer");
+    let project = Project::from_source("#import \"@preview/missing:1.0.0\": answer\n#answer");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("empty render environment should be valid");
 
-    let error = render_html(&workspace, &environment)
+    let error = render_html(&project, &environment)
         .expect_err("unresolved package import should not render");
 
     let RenderError::Diagnostics(diagnostics) = error else {
@@ -381,15 +378,14 @@ fn rendering_package_import_fails_when_bundle_was_not_resolved() {
 #[test]
 fn package_dependency_observation_records_missing_package_requests() {
     let spec = PackageSpec::from_str("@preview/missing:1.0.0").expect("spec should parse");
-    let workspace =
-        DocumentWorkspace::from_source("#import \"@preview/missing:1.0.0\": answer\n#answer");
+    let project = Project::from_source("#import \"@preview/missing:1.0.0\": answer\n#answer");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("empty render environment should be valid");
 
     let observation =
-        observe_package_dependencies(&workspace, &environment, PackageDependencyTarget::Html)
-            .expect("workspace should be valid enough for preflight");
+        observe_package_dependencies(&project, &environment, PackageDependencyTarget::Html)
+            .expect("project should be valid enough for preflight");
 
     assert!(!observation.compile_succeeded());
     assert_eq!(observation.packages(), &[spec]);
@@ -419,13 +415,13 @@ fn package_dependency_observation_records_dynamic_package_imports() {
         .package_bundle(bundle)
         .build()
         .expect("render environment should be valid");
-    let workspace = DocumentWorkspace::from_source(
+    let project = Project::from_source(
         "#let package = \"@preview/example:1.2.3\"\n#import package: answer\n#answer",
     );
 
     let observation =
-        observe_package_dependencies(&workspace, &environment, PackageDependencyTarget::Html)
-            .expect("workspace should be valid enough for preflight");
+        observe_package_dependencies(&project, &environment, PackageDependencyTarget::Html)
+            .expect("project should be valid enough for preflight");
 
     assert!(
         observation.compile_succeeded(),
@@ -454,10 +450,9 @@ fn custom_world_observation_records_package_rooted_file_requests() {
         .package_bundle(bundle)
         .build()
         .expect("render environment should be valid");
-    let workspace =
-        DocumentWorkspace::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
+    let project = Project::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
     let world =
-        SandboxedWorld::for_html(workspace, environment).expect("project world should be valid");
+        ProjectWorld::for_html(project, environment).expect("project world should be valid");
 
     let observation = observe_package_dependencies_world(&world, PackageDependencyTarget::Html)
         .expect("the html Render Capability is part of default builds");
@@ -510,7 +505,7 @@ fn render_environment_rejects_duplicate_package_specs() {
 
 #[test]
 fn configured_render_dates_are_visible_to_typst_today() {
-    let workspace = DocumentWorkspace::from_source("#datetime.today().year()");
+    let project = Project::from_source("#datetime.today().year()");
     let first_date = RenderDate::from_ymd(2024, 1, 2).expect("date should be valid");
     let second_date = RenderDate::from_ymd(2025, 3, 4).expect("date should be valid");
     let first_environment = RenderEnvironment::builder()
@@ -522,9 +517,9 @@ fn configured_render_dates_are_visible_to_typst_today() {
         .build()
         .expect("render environment should be valid");
 
-    let first_html = render_html(&workspace, &first_environment)
+    let first_html = render_html(&project, &first_environment)
         .expect("first configured Render Date should render");
-    let second_html = render_html(&workspace, &second_environment)
+    let second_html = render_html(&project, &second_environment)
         .expect("second configured Render Date should render");
 
     assert!(first_html.as_str().contains("<p>2024</p>"));
@@ -534,7 +529,7 @@ fn configured_render_dates_are_visible_to_typst_today() {
 
 #[test]
 fn default_render_date_keeps_today_rendering_deterministic() {
-    let workspace = DocumentWorkspace::from_source("#datetime.today().year()");
+    let project = Project::from_source("#datetime.today().year()");
     let first_environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
@@ -543,9 +538,9 @@ fn default_render_date_keeps_today_rendering_deterministic() {
         .expect("render environment should be valid");
 
     let first_html =
-        render_html(&workspace, &first_environment).expect("default Render Date should render");
+        render_html(&project, &first_environment).expect("default Render Date should render");
     let second_html =
-        render_html(&workspace, &second_environment).expect("default Render Date should render");
+        render_html(&project, &second_environment).expect("default Render Date should render");
 
     assert_eq!(
         first_environment.render_date(),
@@ -557,20 +552,20 @@ fn default_render_date_keeps_today_rendering_deterministic() {
 
 #[test]
 fn configured_system_inputs_are_visible_to_typst() {
-    let workspace = DocumentWorkspace::from_source("#sys.inputs.customer");
+    let project = Project::from_source("#sys.inputs.customer");
     let environment = RenderEnvironment::builder()
         .input("customer", "Acme")
         .build()
         .expect("render environment should be valid");
 
-    let html = render_html(&workspace, &environment).expect("system inputs should render");
+    let html = render_html(&project, &environment).expect("system inputs should render");
 
     assert!(html.as_str().contains("<p>Acme</p>"));
 }
 
 #[test]
 fn system_inputs_can_be_merged_with_later_keys_winning() {
-    let workspace = DocumentWorkspace::from_source("#sys.inputs.customer");
+    let project = Project::from_source("#sys.inputs.customer");
     let base_inputs = RenderEnvironment::builder()
         .input("customer", "Base")
         .build()
@@ -583,14 +578,14 @@ fn system_inputs_can_be_merged_with_later_keys_winning() {
         .build()
         .expect("merged environment should be valid");
 
-    let html = render_html(&workspace, &environment).expect("merged system inputs should render");
+    let html = render_html(&project, &environment).expect("merged system inputs should render");
 
     assert!(html.as_str().contains("<p>Overlay</p>"));
 }
 
 #[test]
 fn explicit_font_set_makes_configured_fonts_available_to_rendering() {
-    let workspace = DocumentWorkspace::from_source(
+    let project = Project::from_source(
         "#set text(font: \"Libertinus Serif\")\nRendered with an explicit Font Set.",
     );
     let environment = RenderEnvironment::builder()
@@ -598,14 +593,14 @@ fn explicit_font_set_makes_configured_fonts_available_to_rendering() {
         .build()
         .expect("render environment should be valid");
 
-    let pdf = render_pdf(&workspace, &environment).expect("configured font should render");
+    let pdf = render_pdf(&project, &environment).expect("configured font should render");
 
     assert!(pdf.bytes().starts_with(b"%PDF-"));
 }
 
 #[test]
 fn font_set_from_font_file_bytes_makes_configured_fonts_available_to_rendering() {
-    let workspace = DocumentWorkspace::from_source(
+    let project = Project::from_source(
         "#set text(font: \"Libertinus Serif\")\nRendered with application-supplied font bytes.",
     );
     let environment = RenderEnvironment::builder()
@@ -613,7 +608,7 @@ fn font_set_from_font_file_bytes_makes_configured_fonts_available_to_rendering()
         .build()
         .expect("render environment should be valid");
 
-    let pdf = render_pdf(&workspace, &environment).expect("configured font should render");
+    let pdf = render_pdf(&project, &environment).expect("configured font should render");
 
     assert!(pdf.bytes().starts_with(b"%PDF-"));
 }
@@ -622,7 +617,7 @@ fn font_set_from_font_file_bytes_makes_configured_fonts_available_to_rendering()
 fn font_set_from_font_file_bytes_replaces_the_bundled_default() {
     let requested_family = "Libertinus Serif";
     let font_file_without_requested_family = bundled_font_file_without_family(requested_family);
-    let workspace = DocumentWorkspace::from_source(format!(
+    let project = Project::from_source(format!(
         "#set text(font: \"{requested_family}\")\nThis should not fall back to bundled fonts."
     ));
     let environment = RenderEnvironment::builder()
@@ -632,7 +627,7 @@ fn font_set_from_font_file_bytes_replaces_the_bundled_default() {
         .build()
         .expect("render environment should be valid");
 
-    let error = render_pdf(&workspace, &environment)
+    let error = render_pdf(&project, &environment)
         .expect_err("file-backed Font Set should replace bundled fonts");
 
     assert_unknown_font_family(error, "libertinus serif");
@@ -640,7 +635,7 @@ fn font_set_from_font_file_bytes_replaces_the_bundled_default() {
 
 #[test]
 fn bundled_plus_font_files_keeps_bundled_fonts_available() {
-    let workspace = DocumentWorkspace::from_source(
+    let project = Project::from_source(
         "#set text(font: \"Libertinus Serif\")\nRendered with bundled plus supplied font files.",
     );
     let environment = RenderEnvironment::builder()
@@ -648,28 +643,28 @@ fn bundled_plus_font_files_keeps_bundled_fonts_available() {
         .build()
         .expect("render environment should be valid");
 
-    let pdf = render_pdf(&workspace, &environment).expect("bundled font should render");
+    let pdf = render_pdf(&project, &environment).expect("bundled font should render");
 
     assert!(pdf.bytes().starts_with(b"%PDF-"));
 }
 
 #[test]
 fn default_render_environment_uses_bundled_fonts() {
-    let workspace = DocumentWorkspace::from_source(
+    let project = Project::from_source(
         "#set text(font: \"Libertinus Serif\")\nRendered with the default Font Set.",
     );
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let pdf = render_pdf(&workspace, &environment).expect("bundled font should render");
+    let pdf = render_pdf(&project, &environment).expect("bundled font should render");
 
     assert!(pdf.bytes().starts_with(b"%PDF-"));
 }
 
 #[test]
 fn unconfigured_host_fonts_are_not_loaded_during_rendering() {
-    let workspace = DocumentWorkspace::from_source(
+    let project = Project::from_source(
         "#set text(font: \"Arial\")\nArial may exist on the host, but it is not configured.",
     );
     let environment = RenderEnvironment::builder()
@@ -677,31 +672,31 @@ fn unconfigured_host_fonts_are_not_loaded_during_rendering() {
         .build()
         .expect("render environment should be valid");
 
-    let error = render_pdf(&workspace, &environment)
-        .expect_err("unconfigured host fonts should not render");
+    let error =
+        render_pdf(&project, &environment).expect_err("unconfigured host fonts should not render");
 
     assert_unknown_font_family(error, "arial");
 }
 
 #[test]
-fn simple_document_workspace_renders_a_pdf_artifact() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
+fn simple_document_project_renders_a_pdf_artifact() {
+    let project = Project::from_source("= Rendered\n\nHello from Typst.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let pdf = render_pdf(&workspace, &environment).expect("PDF render should succeed");
+    let pdf = render_pdf(&project, &environment).expect("PDF render should succeed");
 
     assert!(pdf.bytes().starts_with(b"%PDF-"));
 }
 
 #[test]
-fn sandboxed_world_renders_pdf_through_raw_world_interface() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from a Project World.");
+fn project_world_renders_pdf_through_raw_world_interface() {
+    let project = Project::from_source("= Rendered\n\nHello from a Project World.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let world = SandboxedWorld::new(workspace, environment).expect("Project World should be valid");
+    let world = ProjectWorld::new(project, environment).expect("Project World should be valid");
 
     let pdf = render_pdf_world(&world).expect("raw world PDF render should succeed");
 
@@ -709,14 +704,13 @@ fn sandboxed_world_renders_pdf_through_raw_world_interface() {
 }
 
 #[test]
-fn html_sandboxed_world_renders_html_through_raw_world_interface() {
-    let workspace =
-        DocumentWorkspace::from_source("= Rendered\n\nHello from an HTML Project World.");
+fn html_project_world_renders_html_through_raw_world_interface() {
+    let project = Project::from_source("= Rendered\n\nHello from an HTML Project World.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let world = SandboxedWorld::for_html(workspace, environment)
-        .expect("HTML Project World should be valid");
+    let world =
+        ProjectWorld::for_html(project, environment).expect("HTML Project World should be valid");
 
     let html = render_html_world(&world).expect("raw world HTML render should succeed");
 
@@ -728,12 +722,12 @@ fn html_sandboxed_world_renders_html_through_raw_world_interface() {
 }
 
 #[test]
-fn sandboxed_world_builder_enables_html_rendering() {
-    let workspace = DocumentWorkspace::from_source("= Builder\n\nHTML feature enabled.");
+fn project_world_builder_enables_html_rendering() {
+    let project = Project::from_source("= Builder\n\nHTML feature enabled.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let world = SandboxedWorld::builder(workspace, environment)
+    let world = ProjectWorld::builder(project, environment)
         .html()
         .build()
         .expect("builder should create an HTML Project World");
@@ -745,11 +739,11 @@ fn sandboxed_world_builder_enables_html_rendering() {
 
 #[test]
 fn raw_html_render_reports_diagnostics_when_world_does_not_enable_html() {
-    let workspace = DocumentWorkspace::from_source("= HTML Feature Required");
+    let project = Project::from_source("= HTML Feature Required");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let world = SandboxedWorld::new(workspace, environment).expect("Project World should be valid");
+    let world = ProjectWorld::new(project, environment).expect("Project World should be valid");
 
     let error = render_html_world(&world)
         .expect_err("non-HTML-capable world should not render HTML artifacts");
@@ -765,12 +759,12 @@ fn raw_html_render_reports_diagnostics_when_world_does_not_enable_html() {
 }
 
 #[test]
-fn sandboxed_world_renders_page_images_through_raw_world_interface() {
-    let workspace = DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page.");
+fn project_world_renders_page_images_through_raw_world_interface() {
+    let project = Project::from_source("First page.\n#pagebreak()\nSecond page.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let world = SandboxedWorld::new(workspace, environment).expect("Project World should be valid");
+    let world = ProjectWorld::new(project, environment).expect("Project World should be valid");
 
     let images = render_page_images_world(&world, PageImageOptions::default())
         .expect("raw world Page Image render should succeed");
@@ -786,13 +780,12 @@ fn sandboxed_world_renders_page_images_through_raw_world_interface() {
 }
 
 #[test]
-fn sandboxed_world_renders_selected_artifact_through_raw_world_interface() {
-    let workspace =
-        DocumentWorkspace::from_source("= Runtime Selected\n\nRendered as a PDF artifact.");
+fn project_world_renders_selected_artifact_through_raw_world_interface() {
+    let project = Project::from_source("= Runtime Selected\n\nRendered as a PDF artifact.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let world = SandboxedWorld::new(workspace, environment).expect("Project World should be valid");
+    let world = ProjectWorld::new(project, environment).expect("Project World should be valid");
 
     let artifact = render_artifact_world(&world, RenderFormat::Pdf)
         .expect("raw world artifact render should succeed");
@@ -804,17 +797,17 @@ fn sandboxed_world_renders_selected_artifact_through_raw_world_interface() {
 }
 
 #[test]
-fn world_overlay_replaces_workspace_file_before_delegating_to_base_world() {
-    let workspace = DocumentWorkspace::builder("main.typ")
+fn world_overlay_replaces_project_file_before_delegating_to_base_world() {
+    let project = Project::builder("main.typ")
         .source_file("main.typ", "#include \"content.typ\"")
         .source_file("content.typ", "Base content.")
         .build()
-        .expect("base workspace should be valid");
+        .expect("base project should be valid");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let base_world = SandboxedWorld::for_html(workspace, environment)
-        .expect("base Project World should be valid");
+    let base_world =
+        ProjectWorld::for_html(project, environment).expect("base Project World should be valid");
     let overlay = WorldOverlay::new(base_world)
         .source_file("content.typ", "Overlay content.")
         .expect("overlay file path should be valid");
@@ -827,12 +820,12 @@ fn world_overlay_replaces_workspace_file_before_delegating_to_base_world() {
 
 #[test]
 fn world_overlay_can_render_an_overlay_main_entrypoint() {
-    let workspace = DocumentWorkspace::from_source("Base main.");
+    let project = Project::from_source("Base main.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let base_world = SandboxedWorld::for_html(workspace, environment)
-        .expect("base Project World should be valid");
+    let base_world =
+        ProjectWorld::for_html(project, environment).expect("base Project World should be valid");
     let overlay = WorldOverlay::new(base_world)
         .source_file("preview.typ", "Overlay main.")
         .expect("overlay main file path should be valid")
@@ -847,13 +840,13 @@ fn world_overlay_can_render_an_overlay_main_entrypoint() {
 
 #[test]
 fn world_overlay_can_override_the_render_date() {
-    let workspace = DocumentWorkspace::from_source("#datetime.today().year()");
+    let project = Project::from_source("#datetime.today().year()");
     let environment = RenderEnvironment::builder()
         .render_date(RenderDate::from_ymd(2024, 1, 2).expect("date should be valid"))
         .build()
         .expect("render environment should be valid");
-    let base_world = SandboxedWorld::for_html(workspace, environment)
-        .expect("base Project World should be valid");
+    let base_world =
+        ProjectWorld::for_html(project, environment).expect("base Project World should be valid");
     let overlay = WorldOverlay::new(base_world)
         .render_date(RenderDate::from_ymd(2025, 3, 4).expect("date should be valid"));
 
@@ -883,14 +876,13 @@ fn world_overlay_replaces_package_bundle_before_delegating_to_base_world() {
         .file("lib.typ", b"#let answer = [Overlay package.]".to_vec())
         .build()
         .expect("overlay package should be valid");
-    let workspace =
-        DocumentWorkspace::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
+    let project = Project::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
     let environment = RenderEnvironment::builder()
         .package_bundle(base_package)
         .build()
         .expect("render environment should be valid");
-    let base_world = SandboxedWorld::for_html(workspace, environment)
-        .expect("base Project World should be valid");
+    let base_world =
+        ProjectWorld::for_html(project, environment).expect("base Project World should be valid");
     let overlay = WorldOverlay::new(base_world).package_bundle(overlay_package);
 
     let html = render_html_world(&overlay).expect("overlay package should render HTML");
@@ -901,14 +893,14 @@ fn world_overlay_replaces_package_bundle_before_delegating_to_base_world() {
 
 #[test]
 fn world_overlay_can_replace_the_base_font_set() {
-    let workspace = DocumentWorkspace::from_source(
+    let project = Project::from_source(
         "#set text(font: \"Libertinus Serif\")\nThis requires the bundled Font Set.",
     );
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
     let base_world =
-        SandboxedWorld::new(workspace, environment).expect("base Project World should be valid");
+        ProjectWorld::new(project, environment).expect("base Project World should be valid");
     let overlay = WorldOverlay::new(base_world).replace_font_set(FontSet::empty());
 
     let error = render_pdf_world(&overlay).expect_err("empty overlay Font Set should not render");
@@ -918,7 +910,7 @@ fn world_overlay_can_replace_the_base_font_set() {
 
 #[test]
 fn world_overlay_can_extend_the_base_font_set() {
-    let workspace = DocumentWorkspace::from_source(
+    let project = Project::from_source(
         "#set text(font: \"Libertinus Serif\")\nThis uses fonts added by the overlay.",
     );
     let environment = RenderEnvironment::builder()
@@ -926,7 +918,7 @@ fn world_overlay_can_extend_the_base_font_set() {
         .build()
         .expect("render environment should be valid");
     let base_world =
-        SandboxedWorld::new(workspace, environment).expect("base Project World should be valid");
+        ProjectWorld::new(project, environment).expect("base Project World should be valid");
     let overlay = WorldOverlay::new(base_world)
         .extend_font_set(FontSet::from_font_files(typst_assets::fonts()));
 
@@ -937,11 +929,11 @@ fn world_overlay_can_extend_the_base_font_set() {
 
 #[test]
 fn pdf_artifact_can_be_prepared_as_a_download_file() {
-    let workspace = DocumentWorkspace::from_source("= Download\n\nSave this document.");
+    let project = Project::from_source("= Download\n\nSave this document.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let pdf = render_pdf(&workspace, &environment).expect("PDF render should succeed");
+    let pdf = render_pdf(&project, &environment).expect("PDF render should succeed");
 
     let download = DownloadFile::from_pdf("document.pdf", &pdf);
 
@@ -955,8 +947,7 @@ fn pdf_artifact_can_be_prepared_as_a_download_file() {
 fn project_pack_round_trips_as_a_typk_download_and_renders_offline() {
     use super::{ProjectPack, ProjectPackMetadata};
 
-    let workspace =
-        DocumentWorkspace::from_source("#import \"@demo/badge:0.1.0\": badge\n\n#badge[Packed]");
+    let project = Project::from_source("#import \"@demo/badge:0.1.0\": badge\n\n#badge[Packed]");
     let bundle = PackageBundle::builder("@demo/badge:0.1.0".parse().expect("spec should parse"))
         .file(
             "typst.toml",
@@ -968,7 +959,7 @@ fn project_pack_round_trips_as_a_typk_download_and_renders_offline() {
         )
         .build()
         .expect("bundle should build");
-    let pack = ProjectPack::builder(workspace)
+    let pack = ProjectPack::builder(project)
         .package_bundle(bundle)
         .metadata(ProjectPackMetadata::new().with_name("Badge demo"))
         .build()
@@ -991,16 +982,16 @@ fn project_pack_round_trips_as_a_typk_download_and_renders_offline() {
 }
 
 #[test]
-fn server_render_request_prepares_pdf_download_from_document_workspace() {
+fn server_render_request_prepares_pdf_download_from_document_project() {
     let request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source("= Server Download\n\nSave this document."),
+        Project::from_source("= Server Download\n\nSave this document."),
         Default::default(),
         DownloadFormat::Pdf,
         "document.pdf",
     );
 
     let download = render_download(
-        request.workspace(),
+        request.project(),
         request.environment(),
         request.format(),
         request.filename(),
@@ -1015,7 +1006,7 @@ fn server_render_request_prepares_pdf_download_from_document_workspace() {
 #[test]
 fn server_render_request_prepares_one_page_image_download() {
     let request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page."),
+        Project::from_source("First page.\n#pagebreak()\nSecond page."),
         Default::default(),
         DownloadFormat::PageImage {
             page_index: 1,
@@ -1025,7 +1016,7 @@ fn server_render_request_prepares_one_page_image_download() {
     );
 
     let download = render_download(
-        request.workspace(),
+        request.project(),
         request.environment(),
         request.format(),
         request.filename(),
@@ -1040,7 +1031,7 @@ fn server_render_request_prepares_one_page_image_download() {
 #[test]
 fn render_download_reports_out_of_range_page_indexes_as_unavailable() {
     let error = render_download(
-        &DocumentWorkspace::from_source("Only one page."),
+        &Project::from_source("Only one page."),
         &RenderEnvironment::default(),
         DownloadFormat::PageImage {
             page_index: 5,
@@ -1059,7 +1050,7 @@ fn render_download_reports_out_of_range_page_indexes_as_unavailable() {
 #[test]
 fn server_render_request_prepares_page_image_archive_download() {
     let request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page."),
+        Project::from_source("First page.\n#pagebreak()\nSecond page."),
         Default::default(),
         DownloadFormat::PageImageArchive {
             options: PageImageOptions::default(),
@@ -1068,7 +1059,7 @@ fn server_render_request_prepares_page_image_archive_download() {
     );
 
     let download = render_download(
-        request.workspace(),
+        request.project(),
         request.environment(),
         request.format(),
         request.filename(),
@@ -1098,7 +1089,7 @@ fn server_render_request_uses_explicit_render_environment_package_bundles() {
             .build()
             .expect("bundle should build");
     let request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source("#import \"@preview/example:1.2.3\": answer\n#answer"),
+        Project::from_source("#import \"@preview/example:1.2.3\": answer\n#answer"),
         RenderEnvironment::builder()
             .package_bundle(bundle)
             .build()
@@ -1108,7 +1099,7 @@ fn server_render_request_uses_explicit_render_environment_package_bundles() {
     );
 
     let download = render_download(
-        request.workspace(),
+        request.project(),
         request.environment(),
         request.format(),
         request.filename(),
@@ -1122,7 +1113,7 @@ fn server_render_request_uses_explicit_render_environment_package_bundles() {
 #[test]
 fn server_render_request_uses_explicit_render_environment_font_files() {
     let request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source(
+        Project::from_source(
             "#set text(font: \"Libertinus Serif\")\nRendered with server-supplied font bytes.",
         ),
         RenderEnvironment::builder()
@@ -1134,7 +1125,7 @@ fn server_render_request_uses_explicit_render_environment_font_files() {
     );
 
     let download = render_download(
-        request.workspace(),
+        request.project(),
         request.environment(),
         request.format(),
         request.filename(),
@@ -1185,12 +1176,12 @@ fn render_environment_accepts_valid_render_date_json() {
 
 #[cfg(feature = "serde")]
 #[test]
-fn document_workspace_json_rejects_escaping_and_duplicate_paths() {
+fn document_project_json_rejects_escaping_and_duplicate_paths() {
     let escaping = serde_json::json!({
         "root_path": "main.typ",
         "files": [{"path": "../escape.typ", "bytes": []}]
     });
-    let error = serde_json::from_value::<DocumentWorkspace>(escaping)
+    let error = serde_json::from_value::<Project>(escaping)
         .expect_err("escaping Project Paths should not deserialize");
     assert!(
         error.to_string().contains("invalid Project File"),
@@ -1204,7 +1195,7 @@ fn document_workspace_json_rejects_escaping_and_duplicate_paths() {
             {"path": "/main.typ", "bytes": []}
         ]
     });
-    let error = serde_json::from_value::<DocumentWorkspace>(duplicate)
+    let error = serde_json::from_value::<Project>(duplicate)
         .expect_err("duplicate Project Paths should not deserialize");
     assert!(
         error.to_string().contains("invalid Typst Project"),
@@ -1221,7 +1212,7 @@ fn server_render_request_round_trips_through_json() {
             .build()
             .expect("bundle should build");
     let request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source("= Round Trip"),
+        Project::from_source("= Round Trip"),
         RenderEnvironment::builder()
             .package_bundle(bundle)
             .input("customer", "Acme")
@@ -1241,7 +1232,7 @@ fn server_render_request_round_trips_through_json() {
 #[test]
 fn server_render_request_does_not_fallback_to_bundled_fonts_when_font_set_is_empty() {
     let request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source(
+        Project::from_source(
             "#set text(font: \"Libertinus Serif\")\nThis should not use bundled fonts.",
         ),
         RenderEnvironment::builder()
@@ -1253,7 +1244,7 @@ fn server_render_request_does_not_fallback_to_bundled_fonts_when_font_set_is_emp
     );
 
     let error = render_download(
-        request.workspace(),
+        request.project(),
         request.environment(),
         request.format(),
         request.filename(),
@@ -1270,7 +1261,7 @@ fn server_render_request_does_not_fallback_to_bundled_fonts_when_font_set_is_emp
 #[test]
 fn server_render_download_response_sets_pdf_download_headers() {
     let request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source("= Server Download"),
+        Project::from_source("= Server Download"),
         Default::default(),
         DownloadFormat::Pdf,
         "document.pdf",
@@ -1298,7 +1289,7 @@ fn server_render_download_response_sets_pdf_download_headers() {
 #[test]
 fn server_render_download_response_sets_page_image_and_archive_media_types() {
     let page_image_request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page."),
+        Project::from_source("First page.\n#pagebreak()\nSecond page."),
         Default::default(),
         DownloadFormat::PageImage {
             page_index: 0,
@@ -1307,7 +1298,7 @@ fn server_render_download_response_sets_page_image_and_archive_media_types() {
         "page-1.png",
     );
     let archive_request = ServerRenderRequest::new(
-        DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page."),
+        Project::from_source("First page.\n#pagebreak()\nSecond page."),
         Default::default(),
         DownloadFormat::PageImageArchive {
             options: PageImageOptions::default(),
@@ -1338,14 +1329,14 @@ fn server_render_download_response_sets_page_image_and_archive_media_types() {
 #[tokio::test]
 async fn server_render_download_route_accepts_json_requests_for_download_formats() {
     let pdf_response = post_server_render_request(ServerRenderRequest::new(
-        DocumentWorkspace::from_source("= Server PDF"),
+        Project::from_source("= Server PDF"),
         Default::default(),
         DownloadFormat::Pdf,
         "document.pdf",
     ))
     .await;
     let page_image_response = post_server_render_request(ServerRenderRequest::new(
-        DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page."),
+        Project::from_source("First page.\n#pagebreak()\nSecond page."),
         Default::default(),
         DownloadFormat::PageImage {
             page_index: 1,
@@ -1355,7 +1346,7 @@ async fn server_render_download_route_accepts_json_requests_for_download_formats
     ))
     .await;
     let archive_response = post_server_render_request(ServerRenderRequest::new(
-        DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page."),
+        Project::from_source("First page.\n#pagebreak()\nSecond page."),
         Default::default(),
         DownloadFormat::PageImageArchive {
             options: PageImageOptions::default(),
@@ -1392,7 +1383,7 @@ async fn server_render_download_route_rejects_html_format_at_deserialization() {
     // HTML is not a DownloadFormat variant, so a request asking for it never
     // reaches rendering: JSON deserialization rejects it at the route boundary.
     let body = serde_json::json!({
-        "workspace": {"root_path": "main.typ", "files": [{"path": "main.typ", "bytes": []}]},
+        "project": {"root_path": "main.typ", "files": [{"path": "main.typ", "bytes": []}]},
         "environment": {},
         "format": "Html",
         "filename": "document.html"
@@ -1443,12 +1434,12 @@ fn server_render_download_router_exposes_the_download_route() {
 
 #[test]
 fn render_artifact_dispatches_pdf_rendering() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
+    let project = Project::from_source("= Rendered\n\nHello from Typst.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let artifact = render_artifact(&workspace, &environment, RenderFormat::Pdf)
+    let artifact = render_artifact(&project, &environment, RenderFormat::Pdf)
         .expect("PDF artifact render should succeed");
 
     let RenderArtifact::Pdf(pdf) = artifact else {
@@ -1459,11 +1450,11 @@ fn render_artifact_dispatches_pdf_rendering() {
 
 #[test]
 fn pdf_render_artifact_can_be_prepared_as_a_download_file() {
-    let workspace = DocumentWorkspace::from_source("= Download\n\nSave this document.");
+    let project = Project::from_source("= Download\n\nSave this document.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let artifact = render_artifact(&workspace, &environment, RenderFormat::Pdf)
+    let artifact = render_artifact(&project, &environment, RenderFormat::Pdf)
         .expect("PDF artifact render should succeed");
 
     let download = DownloadFile::from_render_artifact("document.pdf", &artifact)
@@ -1479,17 +1470,17 @@ fn stale_render_artifact_state_can_be_prepared_as_a_download_file() {
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let current_workspace = DocumentWorkspace::from_source("= Download\n\nStill downloadable.");
-    let broken_workspace = DocumentWorkspace::from_source("#let broken =");
+    let current_project = Project::from_source("= Download\n\nStill downloadable.");
+    let broken_project = Project::from_source("#let broken =");
     let mut state = RenderState::new();
 
     state.update(render_artifact(
-        &current_workspace,
+        &current_project,
         &environment,
         RenderFormat::Pdf,
     ));
     state.update(render_artifact(
-        &broken_workspace,
+        &broken_project,
         &environment,
         RenderFormat::Pdf,
     ));
@@ -1516,17 +1507,13 @@ fn empty_render_artifact_state_cannot_be_prepared_as_a_download_file() {
 
 #[test]
 fn html_render_artifact_state_cannot_be_prepared_as_a_download_file() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
+    let project = Project::from_source("= Rendered\n\nHello from Typst.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
     let mut state = RenderState::new();
 
-    state.update(render_artifact(
-        &workspace,
-        &environment,
-        RenderFormat::Html,
-    ));
+    state.update(render_artifact(&project, &environment, RenderFormat::Html));
 
     let error = DownloadFile::from_render_artifact_state("document.html", &state)
         .expect_err("HTML Render Artifact state should not be downloadable");
@@ -1536,12 +1523,12 @@ fn html_render_artifact_state_cannot_be_prepared_as_a_download_file() {
 }
 
 #[test]
-fn root_file_diagnostics_expose_workspace_path_and_source_range() {
-    let workspace = DocumentWorkspace::from_source("= Title\n\n#let broken =");
+fn root_file_diagnostics_expose_project_path_and_source_range() {
+    let project = Project::from_source("= Title\n\n#let broken =");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let error = render_pdf(&workspace, &environment)
+    let error = render_pdf(&project, &environment)
         .expect_err("invalid Typst source should fail with diagnostics");
 
     let RenderError::Diagnostics(diagnostics) = error else {
@@ -1558,7 +1545,7 @@ fn root_file_diagnostics_expose_workspace_path_and_source_range() {
 
     assert_eq!(
         diagnostic
-            .workspace_path()
+            .project_path()
             .map(|path| path.get_without_slash()),
         Some("main.typ")
     );
@@ -1567,16 +1554,16 @@ fn root_file_diagnostics_expose_workspace_path_and_source_range() {
 }
 
 #[test]
-fn included_file_diagnostics_expose_included_workspace_path() {
-    let workspace = DocumentWorkspace::builder("main.typ")
+fn included_file_diagnostics_expose_included_project_path() {
+    let project = Project::builder("main.typ")
         .source_file("main.typ", "= Main\n\n#include \"chapters/intro.typ\"")
         .source_file("chapters/intro.typ", "Included\n#let broken =")
         .build()
-        .expect("workspace should be valid");
+        .expect("project should be valid");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let error = render_pdf(&workspace, &environment)
+    let error = render_pdf(&project, &environment)
         .expect_err("invalid included Typst source should fail with diagnostics");
 
     let RenderError::Diagnostics(diagnostics) = error else {
@@ -1592,7 +1579,7 @@ fn included_file_diagnostics_expose_included_workspace_path() {
 
     assert_eq!(
         diagnostic
-            .workspace_path()
+            .project_path()
             .map(|path| path.get_without_slash()),
         Some("chapters/intro.typ")
     );
@@ -1601,7 +1588,7 @@ fn included_file_diagnostics_expose_included_workspace_path() {
 }
 
 #[test]
-fn package_file_diagnostics_expose_source_identity_without_workspace_path() {
+fn package_file_diagnostics_expose_source_identity_without_project_path() {
     let spec = PackageSpec::from_str("@preview/example:1.2.3").expect("spec should parse");
     let bundle = PackageBundle::builder(spec)
         .file(
@@ -1612,12 +1599,12 @@ fn package_file_diagnostics_expose_source_identity_without_workspace_path() {
         .file("lib.typ", b"#let broken =".to_vec())
         .build()
         .expect("package bundle should be valid");
-    let workspace = DocumentWorkspace::from_source("#import \"@preview/example:1.2.3\"");
+    let project = Project::from_source("#import \"@preview/example:1.2.3\"");
     let environment = RenderEnvironment::builder()
         .package_bundle(bundle)
         .build()
         .expect("render environment should be valid");
-    let error = render_pdf(&workspace, &environment)
+    let error = render_pdf(&project, &environment)
         .expect_err("invalid package source should fail with diagnostics");
 
     let RenderError::Diagnostics(diagnostics) = error else {
@@ -1631,7 +1618,7 @@ fn package_file_diagnostics_expose_source_identity_without_workspace_path() {
         .source_identity()
         .expect("package diagnostic should expose a source identity");
 
-    assert!(diagnostic.workspace_path().is_none());
+    assert!(diagnostic.project_path().is_none());
     assert_eq!(source.package(), Some("@preview/example:1.2.3"));
     assert_eq!(source.path(), "lib.typ");
 }
@@ -1639,11 +1626,11 @@ fn package_file_diagnostics_expose_source_identity_without_workspace_path() {
 #[cfg(feature = "serde")]
 #[test]
 fn render_diagnostics_serialize_for_dioxus_flows() {
-    let workspace = DocumentWorkspace::from_source("= Title\n\n#let broken =");
+    let project = Project::from_source("= Title\n\n#let broken =");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let error = render_pdf(&workspace, &environment)
+    let error = render_pdf(&project, &environment)
         .expect_err("invalid Typst source should fail with diagnostics");
 
     let RenderError::Diagnostics(diagnostics) = error else {
@@ -1657,17 +1644,17 @@ fn render_diagnostics_serialize_for_dioxus_flows() {
         .expect("render diagnostic should serialize under the serde feature");
 
     assert_eq!(value["message"], "expected expression");
-    assert_eq!(value["workspace_path"], "main.typ");
+    assert_eq!(value["project_path"], "main.typ");
     assert_eq!(value["source_range"]["start_line"], 2);
 }
 
 #[test]
-fn html_export_diagnostics_expose_workspace_path_and_source_range() {
-    let workspace = DocumentWorkspace::from_source("#html.elem(\"script\")[</script>]");
+fn html_export_diagnostics_expose_project_path_and_source_range() {
+    let project = Project::from_source("#html.elem(\"script\")[</script>]");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let error = render_html(&workspace, &environment)
+    let error = render_html(&project, &environment)
         .expect_err("invalid HTML export should fail with diagnostics");
 
     let RenderError::Diagnostics(diagnostics) = error else {
@@ -1687,7 +1674,7 @@ fn html_export_diagnostics_expose_workspace_path_and_source_range() {
 
     assert_eq!(
         diagnostic
-            .workspace_path()
+            .project_path()
             .map(|path| path.get_without_slash()),
         Some("main.typ")
     );
@@ -1696,17 +1683,17 @@ fn html_export_diagnostics_expose_workspace_path_and_source_range() {
 }
 
 #[test]
-fn rendered_source_can_include_another_workspace_file() {
-    let workspace = DocumentWorkspace::builder("main.typ")
+fn rendered_source_can_include_another_project_file() {
+    let project = Project::builder("main.typ")
         .source_file("main.typ", "= Main\n\n#include \"chapters/intro.typ\"")
-        .source_file("chapters/intro.typ", "Included from the workspace.")
+        .source_file("chapters/intro.typ", "Included from the project.")
         .build()
-        .expect("workspace should be valid");
+        .expect("project should be valid");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let pdf = render_pdf(&workspace, &environment).expect("PDF render should succeed");
+    let pdf = render_pdf(&project, &environment).expect("PDF render should succeed");
 
     assert!(pdf.bytes().starts_with(b"%PDF-"));
 }
@@ -1726,26 +1713,25 @@ fn rendered_source_can_import_a_package_bundle() {
         )
         .build()
         .expect("package bundle should be valid");
-    let workspace =
-        DocumentWorkspace::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
+    let project = Project::from_source("#import \"@preview/example:1.2.3\": answer\n#answer");
     let environment = RenderEnvironment::builder()
         .package_bundle(bundle)
         .build()
         .expect("render environment should be valid");
 
-    let pdf = render_pdf(&workspace, &environment).expect("PDF render should succeed");
+    let pdf = render_pdf(&project, &environment).expect("PDF render should succeed");
 
     assert!(pdf.bytes().starts_with(b"%PDF-"));
 }
 
 #[test]
-fn one_page_document_workspace_renders_one_png_page_image() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
+fn one_page_document_project_renders_one_png_page_image() {
+    let project = Project::from_source("= Rendered\n\nHello from Typst.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let images = render_page_images(&workspace, &environment, PageImageOptions::default())
+    let images = render_page_images(&project, &environment, PageImageOptions::default())
         .expect("Page Image render should succeed");
 
     assert_eq!(images.page_count(), 1);
@@ -1760,11 +1746,11 @@ fn one_page_document_workspace_renders_one_png_page_image() {
 
 #[test]
 fn page_image_can_be_prepared_as_a_download_file() {
-    let workspace = DocumentWorkspace::from_source("= Download\n\nSave this page.");
+    let project = Project::from_source("= Download\n\nSave this page.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let images = render_page_images(&workspace, &environment, PageImageOptions::default())
+    let images = render_page_images(&project, &environment, PageImageOptions::default())
         .expect("Page Image render should succeed");
     let page = images.page(0).expect("first page image should exist");
 
@@ -1777,11 +1763,11 @@ fn page_image_can_be_prepared_as_a_download_file() {
 
 #[test]
 fn page_images_artifact_can_be_prepared_as_an_archive_download_file() {
-    let workspace = DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page.");
+    let project = Project::from_source("First page.\n#pagebreak()\nSecond page.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let images = render_page_images(&workspace, &environment, PageImageOptions::default())
+    let images = render_page_images(&project, &environment, PageImageOptions::default())
         .expect("Page Image render should succeed");
 
     let download = DownloadFile::from_page_images_archive("pages.zip", &images);
@@ -1814,13 +1800,13 @@ fn page_images_artifact_can_be_prepared_as_an_archive_download_file() {
 }
 
 #[test]
-fn multi_page_document_workspace_renders_one_png_page_image_per_page() {
-    let workspace = DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page.");
+fn multi_page_document_project_renders_one_png_page_image_per_page() {
+    let project = Project::from_source("First page.\n#pagebreak()\nSecond page.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let images = render_page_images(&workspace, &environment, PageImageOptions::default())
+    let images = render_page_images(&project, &environment, PageImageOptions::default())
         .expect("Page Image render should succeed");
 
     assert_eq!(images.page_count(), 2);
@@ -1842,18 +1828,16 @@ fn multi_page_document_workspace_renders_one_png_page_image_per_page() {
 
 #[test]
 fn page_image_options_scale_rendered_image_dimensions() {
-    let workspace = DocumentWorkspace::from_source(
-        "#set page(width: 100pt, height: 50pt, margin: 0pt)\nScaled page.",
-    );
+    let project =
+        Project::from_source("#set page(width: 100pt, height: 50pt, margin: 0pt)\nScaled page.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let one_pixel_per_pt = render_page_images(&workspace, &environment, PageImageOptions::new(1.0))
+    let one_pixel_per_pt = render_page_images(&project, &environment, PageImageOptions::new(1.0))
         .expect("Page Image render should succeed");
-    let two_pixels_per_pt =
-        render_page_images(&workspace, &environment, PageImageOptions::new(2.0))
-            .expect("Page Image render should succeed");
+    let two_pixels_per_pt = render_page_images(&project, &environment, PageImageOptions::new(2.0))
+        .expect("Page Image render should succeed");
 
     let one_pixel_per_pt_page = one_pixel_per_pt
         .page(0)
@@ -1874,15 +1858,14 @@ fn page_image_options_scale_rendered_image_dimensions() {
 
 #[test]
 fn render_artifact_dispatches_page_images_rendering_with_options() {
-    let workspace = DocumentWorkspace::from_source(
-        "#set page(width: 100pt, height: 50pt, margin: 0pt)\nScaled page.",
-    );
+    let project =
+        Project::from_source("#set page(width: 100pt, height: 50pt, margin: 0pt)\nScaled page.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
     let artifact = render_artifact(
-        &workspace,
+        &project,
         &environment,
         RenderFormat::PageImages(PageImageOptions::new(1.0)),
     )
@@ -1900,12 +1883,12 @@ fn render_artifact_dispatches_page_images_rendering_with_options() {
 
 #[test]
 fn page_images_render_artifact_can_be_prepared_as_an_archive_download_file() {
-    let workspace = DocumentWorkspace::from_source("First page.\n#pagebreak()\nSecond page.");
+    let project = Project::from_source("First page.\n#pagebreak()\nSecond page.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
     let artifact = render_artifact(
-        &workspace,
+        &project,
         &environment,
         RenderFormat::PageImages(PageImageOptions::default()),
     )
@@ -1925,13 +1908,13 @@ fn page_images_render_artifact_can_be_prepared_as_an_archive_download_file() {
 }
 
 #[test]
-fn simple_document_workspace_renders_an_html_artifact() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
+fn simple_document_project_renders_an_html_artifact() {
+    let project = Project::from_source("= Rendered\n\nHello from Typst.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let html = render_html(&workspace, &environment).expect("HTML render should succeed");
+    let html = render_html(&project, &environment).expect("HTML render should succeed");
 
     assert!(html.as_str().starts_with("<!DOCTYPE html>\n<html"));
     assert!(html.as_str().contains("<h2>Rendered</h2>"));
@@ -1944,12 +1927,12 @@ fn simple_document_workspace_renders_an_html_artifact() {
 
 #[test]
 fn render_artifact_dispatches_html_rendering() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
+    let project = Project::from_source("= Rendered\n\nHello from Typst.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let artifact = render_artifact(&workspace, &environment, RenderFormat::Html)
+    let artifact = render_artifact(&project, &environment, RenderFormat::Html)
         .expect("HTML artifact render should succeed");
 
     let RenderArtifact::Html(html) = artifact else {
@@ -1961,11 +1944,11 @@ fn render_artifact_dispatches_html_rendering() {
 
 #[test]
 fn html_render_artifact_cannot_be_prepared_as_a_download_file() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
+    let project = Project::from_source("= Rendered\n\nHello from Typst.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let artifact = render_artifact(&workspace, &environment, RenderFormat::Html)
+    let artifact = render_artifact(&project, &environment, RenderFormat::Html)
         .expect("HTML artifact render should succeed");
 
     let error = DownloadFile::from_render_artifact("document.html", &artifact)
@@ -1976,11 +1959,11 @@ fn html_render_artifact_cannot_be_prepared_as_a_download_file() {
 
 fn render_headless(
     renderer: &mut HeadlessRender,
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
     format: RenderFormat,
 ) {
-    let builder = environment.world_builder(workspace.clone());
+    let builder = environment.world_builder(project.clone());
     let builder = match format {
         RenderFormat::Html => builder.html(),
         RenderFormat::Pdf | RenderFormat::PageImages(_) => builder,
@@ -1991,13 +1974,13 @@ fn render_headless(
 
 #[test]
 fn headless_render_action_updates_current_render_state() {
-    let workspace = DocumentWorkspace::from_source("= Rendered\n\nHello from Typst.");
+    let project = Project::from_source("= Rendered\n\nHello from Typst.");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
     let mut renderer = HeadlessRender::new();
 
-    render_headless(&mut renderer, &workspace, &environment, RenderFormat::Html);
+    render_headless(&mut renderer, &project, &environment, RenderFormat::Html);
 
     let state = renderer.state();
     assert_eq!(state.status(), RenderStatus::Current);
@@ -2010,8 +1993,8 @@ fn headless_render_action_updates_current_render_state() {
 
 #[test]
 fn headless_render_action_retains_stale_artifact_after_error() {
-    let current_workspace = DocumentWorkspace::from_source("= Current\n\nStill visible.");
-    let broken_workspace = DocumentWorkspace::from_source("#let broken =");
+    let current_project = Project::from_source("= Current\n\nStill visible.");
+    let broken_project = Project::from_source("#let broken =");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
@@ -2019,13 +2002,13 @@ fn headless_render_action_retains_stale_artifact_after_error() {
 
     render_headless(
         &mut renderer,
-        &current_workspace,
+        &current_project,
         &environment,
         RenderFormat::Html,
     );
     render_headless(
         &mut renderer,
-        &broken_workspace,
+        &broken_project,
         &environment,
         RenderFormat::Html,
     );
@@ -2046,7 +2029,7 @@ fn headless_render_action_retains_stale_artifact_after_error() {
 
     assert_eq!(
         diagnostic
-            .workspace_path()
+            .project_path()
             .map(|path| path.get_without_slash()),
         Some("main.typ")
     );
@@ -2055,7 +2038,7 @@ fn headless_render_action_retains_stale_artifact_after_error() {
 
 #[test]
 fn headless_render_action_records_failed_state_without_artifact() {
-    let broken_workspace = DocumentWorkspace::from_source("#let broken =");
+    let broken_project = Project::from_source("#let broken =");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
@@ -2063,7 +2046,7 @@ fn headless_render_action_records_failed_state_without_artifact() {
 
     render_headless(
         &mut renderer,
-        &broken_workspace,
+        &broken_project,
         &environment,
         RenderFormat::Html,
     );
@@ -2076,8 +2059,8 @@ fn headless_render_action_records_failed_state_without_artifact() {
 
 #[test]
 fn headless_render_action_does_not_keep_stale_artifact_when_format_changes() {
-    let current_workspace = DocumentWorkspace::from_source("= Current\n\nPDF artifact.");
-    let broken_workspace = DocumentWorkspace::from_source("#let broken =");
+    let current_project = Project::from_source("= Current\n\nPDF artifact.");
+    let broken_project = Project::from_source("#let broken =");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
@@ -2085,13 +2068,13 @@ fn headless_render_action_does_not_keep_stale_artifact_when_format_changes() {
 
     render_headless(
         &mut renderer,
-        &current_workspace,
+        &current_project,
         &environment,
         RenderFormat::Pdf,
     );
     render_headless(
         &mut renderer,
-        &broken_workspace,
+        &broken_project,
         &environment,
         RenderFormat::Html,
     );
@@ -2104,8 +2087,8 @@ fn headless_render_action_does_not_keep_stale_artifact_when_format_changes() {
 
 #[test]
 fn headless_render_keeps_stale_artifact_after_failed_render() {
-    let current_workspace = DocumentWorkspace::from_source("= Current\n\nStill visible.");
-    let broken_workspace = DocumentWorkspace::from_source("#let broken =");
+    let current_project = Project::from_source("= Current\n\nStill visible.");
+    let broken_project = Project::from_source("#let broken =");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
@@ -2113,13 +2096,13 @@ fn headless_render_keeps_stale_artifact_after_failed_render() {
 
     render_headless(
         &mut renderer,
-        &current_workspace,
+        &current_project,
         &environment,
         RenderFormat::Html,
     );
     render_headless(
         &mut renderer,
-        &broken_workspace,
+        &broken_project,
         &environment,
         RenderFormat::Html,
     );
@@ -2134,22 +2117,19 @@ fn headless_render_keeps_stale_artifact_after_failed_render() {
 }
 
 #[test]
-fn rendered_html_can_include_another_workspace_file() {
-    let workspace = DocumentWorkspace::builder("main.typ")
+fn rendered_html_can_include_another_project_file() {
+    let project = Project::builder("main.typ")
         .source_file("main.typ", "= Main\n\n#include \"chapters/intro.typ\"")
-        .source_file("chapters/intro.typ", "Included from the workspace.")
+        .source_file("chapters/intro.typ", "Included from the project.")
         .build()
-        .expect("workspace should be valid");
+        .expect("project should be valid");
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
 
-    let html = render_html(&workspace, &environment).expect("HTML render should succeed");
+    let html = render_html(&project, &environment).expect("HTML render should succeed");
 
-    assert!(
-        html.as_str()
-            .contains("<p>Included from the workspace.</p>")
-    );
+    assert!(html.as_str().contains("<p>Included from the project.</p>"));
 }
 
 #[test]
@@ -2157,12 +2137,12 @@ fn render_state_keeps_stale_artifact_when_next_render_fails() {
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let current_workspace = DocumentWorkspace::from_source("= Current\n\nStill visible.");
-    let broken_workspace = DocumentWorkspace::from_source("#let broken =");
+    let current_project = Project::from_source("= Current\n\nStill visible.");
+    let broken_project = Project::from_source("#let broken =");
     let mut state = RenderState::new();
 
-    state.update(render_html(&current_workspace, &environment));
-    state.update(render_html(&broken_workspace, &environment));
+    state.update(render_html(&current_project, &environment));
+    state.update(render_html(&broken_project, &environment));
 
     assert_eq!(state.status(), RenderStatus::Stale);
     assert!(
@@ -2191,17 +2171,17 @@ fn render_state_clears_error_when_render_recovers() {
     let environment = RenderEnvironment::builder()
         .build()
         .expect("render environment should be valid");
-    let broken_workspace = DocumentWorkspace::from_source("#let broken =");
-    let recovered_workspace = DocumentWorkspace::from_source("= Recovered\n\nVisible again.");
+    let broken_project = Project::from_source("#let broken =");
+    let recovered_project = Project::from_source("= Recovered\n\nVisible again.");
     let mut state = RenderState::new();
 
-    state.update(render_html(&broken_workspace, &environment));
+    state.update(render_html(&broken_project, &environment));
 
     assert_eq!(state.status(), RenderStatus::Failed);
     assert!(state.artifact().is_none());
     assert!(state.error().is_some());
 
-    state.update(render_html(&recovered_workspace, &environment));
+    state.update(render_html(&recovered_project, &environment));
 
     assert_eq!(state.status(), RenderStatus::Current);
     assert!(state.error().is_none());
@@ -2337,12 +2317,12 @@ mod dioxus_provider_tests {
     #[test]
     fn dioxus_render_hook_renders_complete_world() {
         let (_dom, mut renderer) = render_signal_from_hook();
-        let workspace = DocumentWorkspace::from_source("= Hook World\n\nRendered through a hook.");
+        let project = Project::from_source("= Hook World\n\nRendered through a hook.");
         let environment = RenderEnvironment::builder()
             .build()
             .expect("render environment should be valid");
-        let world = SandboxedWorld::for_html(workspace, environment)
-            .expect("Project World should be valid");
+        let world =
+            ProjectWorld::for_html(project, environment).expect("Project World should be valid");
 
         renderer.write().render_world(&world, RenderFormat::Html);
 
@@ -2370,7 +2350,7 @@ mod dioxus_provider_tests {
 
     #[test]
     fn typst_world_component_renders_complete_world_without_composition() {
-        let project = DocumentWorkspace::from_source("= Complete World\n\nRendered directly.");
+        let project = Project::from_source("= Complete World\n\nRendered directly.");
         let environment = RenderEnvironment::default();
         let world = environment
             .world_builder(project)

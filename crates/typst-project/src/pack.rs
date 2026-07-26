@@ -1,6 +1,6 @@
 use crate::{
-    DocumentWorkspace, FontSet, PackageBundle, PackageBundleError, PackageBundleSet, PackageSpec,
-    RenderDate, RenderEnvironment, RenderEnvironmentError, WorkspaceValidationError,
+    FontSet, PackageBundle, PackageBundleError, PackageBundleSet, PackageSpec, Project,
+    ProjectValidationError, RenderDate, RenderEnvironment, RenderEnvironmentError,
 };
 use typst::foundations::{Dict, IntoValue};
 
@@ -17,7 +17,7 @@ pub const PROJECT_PACK_EXTENSION: &str = typst_pack::FILE_EXTENSION;
 /// type converts packs to and from this crate's domain types.
 #[derive(Clone, Debug)]
 pub struct ProjectPack {
-    project: DocumentWorkspace,
+    project: Project,
     package_bundles: PackageBundleSet,
     external_packages: Vec<PackageSpec>,
     external_package_requirements: Vec<ExternalPackageRequirement>,
@@ -47,7 +47,7 @@ impl Eq for ProjectPack {}
 
 impl ProjectPack {
     /// Start building a Project Pack from an already-validated Typst Project.
-    pub fn builder(project: DocumentWorkspace) -> ProjectPackBuilder {
+    pub fn builder(project: Project) -> ProjectPackBuilder {
         ProjectPackBuilder {
             project,
             package_bundles: Vec::new(),
@@ -67,7 +67,7 @@ impl ProjectPack {
             }
         })?;
 
-        let mut project = DocumentWorkspace::builder(pack.entrypoint());
+        let mut project = Project::builder(pack.entrypoint());
         for (path, data) in pack.files() {
             project = project.file(path, data.as_slice());
         }
@@ -226,7 +226,7 @@ impl ProjectPack {
     }
 
     /// Return the packed Typst Project.
-    pub fn project(&self) -> &DocumentWorkspace {
+    pub fn project(&self) -> &Project {
         &self.project
     }
 
@@ -517,7 +517,7 @@ impl ProjectPackEnvironmentBuilder<'_> {
 /// Builder for a [`ProjectPack`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectPackBuilder {
-    project: DocumentWorkspace,
+    project: Project,
     package_bundles: Vec<PackageBundle>,
     external_package_bundles: Vec<PackageBundle>,
     font_faces: Vec<ProjectPackBuilderFontFace>,
@@ -833,7 +833,7 @@ pub enum ProjectPackError {
     Archive { message: String },
 
     /// The packed files do not form a valid Typst Project.
-    Project(WorkspaceValidationError),
+    Project(ProjectValidationError),
 
     /// A vendored package could not be converted into a Package Bundle.
     Package {
@@ -874,7 +874,7 @@ mod tests {
     use super::*;
 
     fn sample_pack() -> ProjectPack {
-        let project = DocumentWorkspace::builder("main.typ")
+        let project = Project::builder("main.typ")
             .source_file(
                 "main.typ",
                 "#import \"@demo/badge:0.1.0\": badge\n#include \"chapters/intro.typ\"",
@@ -963,7 +963,7 @@ mod tests {
             .next()
             .expect("bundled fonts should not be empty")
             .to_vec();
-        let pack = ProjectPack::builder(DocumentWorkspace::from_source("Hello"))
+        let pack = ProjectPack::builder(Project::from_source("Hello"))
             .font_file(font.clone())
             .build()
             .expect("pack with a font should build");
@@ -1100,7 +1100,7 @@ mod tests {
             .nth(2)
             .expect("bundled fonts should contain a third font")
             .to_vec();
-        let pack = ProjectPack::builder(DocumentWorkspace::from_source("Hello"))
+        let pack = ProjectPack::builder(Project::from_source("Hello"))
             .external_font_face(external_font.clone(), 0)
             .font_face(embedded_font.clone(), 0)
             .build()
@@ -1141,7 +1141,7 @@ mod tests {
 
     #[test]
     fn project_pack_builder_rejects_unrecognized_fonts_and_duplicate_packages() {
-        let font_result = ProjectPack::builder(DocumentWorkspace::from_source("Hello"))
+        let font_result = ProjectPack::builder(Project::from_source("Hello"))
             .font_file(b"not a font".to_vec())
             .build();
         assert_eq!(font_result, Err(ProjectPackError::UnrecognizedFont));
@@ -1154,7 +1154,7 @@ mod tests {
         .build()
         .expect("empty package bundle should build");
         assert_eq!(
-            ProjectPack::builder(DocumentWorkspace::from_source("Hello"))
+            ProjectPack::builder(Project::from_source("Hello"))
                 .external_package_bundle(empty_external)
                 .build(),
             Err(ProjectPackError::EmptyExternalPackage {
@@ -1170,7 +1170,7 @@ mod tests {
                 .build()
                 .expect("bundle should build")
         };
-        let duplicate_result = ProjectPack::builder(DocumentWorkspace::from_source("Hello"))
+        let duplicate_result = ProjectPack::builder(Project::from_source("Hello"))
             .package_bundle(bundle("@demo/badge:0.1.0"))
             .package_bundle(bundle("@demo/badge:0.1.0"))
             .build();

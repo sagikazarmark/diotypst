@@ -17,9 +17,9 @@ typst-project = "0.1"
 ## Quick Start
 
 ```rust
-use typst_project::{DocumentWorkspace, RenderEnvironment};
+use typst_project::{Project, RenderEnvironment};
 
-let project = DocumentWorkspace::from_source("= Hello");
+let project = Project::from_source("= Hello");
 let environment = RenderEnvironment::builder()
     .input("customer", "Acme")
     .build()
@@ -32,7 +32,7 @@ let world = environment.world(project)
 Render Environment clones share immutable package storage and lazily prepared font state, so one
 environment can cheaply build worlds for changing editor projects. Use
 `environment.world_builder(project).html().build()` when the world must enable Typst's HTML
-feature. A stateful editor can retain one `SandboxedWorld` and call `replace_project` between
+feature. A stateful editor can retain one `ProjectWorld` and call `replace_project` between
 renders; its file store edits previously requested Typst sources in place for incremental
 compilation while the root and Project File paths remain stable. Project layout changes replace
 the file store without rebuilding prepared environment resources.
@@ -55,9 +55,9 @@ the file store without rebuilding prepared environment resources.
 
 ## Domain Model
 
-- `DocumentWorkspace` is the document input: one root Typst entrypoint plus explicit Project Files addressed by normalized root-relative paths.
+- `Project` is the document input: one root Typst entrypoint plus explicit Project Files addressed by normalized root-relative paths.
 - `RenderEnvironment` is non-source render context: Package Bundles, fonts, deterministic render date, and Typst `sys.inputs`.
-- `SandboxedWorld` is the crate-owned complete Typst `World` built from an explicit Typst Project and Render Environment.
+- `ProjectWorld` is the crate-owned complete Typst `World` built from an explicit Typst Project and Render Environment.
 - `WorldOverlay` layers exact resource overrides over an existing complete world without mutating the base world.
 
 ## Render Capabilities
@@ -132,9 +132,9 @@ converts straight into this crate's domain types:
 ```rust
 # #[cfg(feature = "pack")]
 # {
-use typst_project::{DocumentWorkspace, ProjectPack};
+use typst_project::{Project, ProjectPack};
 
-let pack = ProjectPack::builder(DocumentWorkspace::from_source("= Portable"))
+let pack = ProjectPack::builder(Project::from_source("= Portable"))
     .build()
     .expect("pack should be valid");
 let bytes = pack.to_bytes().expect("pack should serialize");
@@ -162,18 +162,18 @@ without storing their bytes in the archive.
 
 ## Overlays
 
-Overlays shadow exact resources before delegating unresolved requests to the base world. Workspace files match by workspace path, package bundles match by exact package spec, and overlay render dates only affect calls through that overlay.
+Overlays shadow exact resources before delegating unresolved requests to the base world. Project files match by project path, package bundles match by exact package spec, and overlay render dates only affect calls through that overlay.
 
 ```rust
-use typst_project::{SandboxedWorld, WorldOverlay};
+use typst_project::{ProjectWorld, WorldOverlay};
 
-# let project = typst_project::DocumentWorkspace::from_source("Base");
+# let project = typst_project::Project::from_source("Base");
 # let environment = typst_project::RenderEnvironment::builder().build().unwrap();
-# let base = SandboxedWorld::new(project, environment).unwrap();
+# let base = ProjectWorld::new(project, environment).unwrap();
 let overlay = WorldOverlay::new(base)
     .source_file("preview.typ", "Overlay main")?
     .main("preview.typ")?;
-# Ok::<_, typst_project::WorkspaceValidationError>(())
+# Ok::<_, typst_project::ProjectValidationError>(())
 ```
 
 ## Related Crates
