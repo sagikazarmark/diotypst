@@ -57,6 +57,14 @@ pub use server::{
 #[cfg(feature = "dioxus")]
 pub use session::{RenderSession, use_render_session};
 pub use session::{RenderSessionOptions, TypstInput, TypstView};
+
+// The stack below this crate is re-exported item by item so the common path needs one
+// import. These two also expose the crates themselves, so anything not re-exported at
+// the root stays reachable as `diotypst::typst_embed::…` without a direct dependency
+// and without waiting for a release that adds the missing re-export.
+pub use typst_embed;
+pub use typst_package_source;
+
 #[cfg(feature = "archive")]
 pub use typst_embed::PackageArchiveError;
 #[cfg(feature = "system-downloader")]

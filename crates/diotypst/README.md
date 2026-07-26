@@ -465,6 +465,12 @@ dx serve --fullstack \
   package-acquisition tier (Package Sources, Bundles, and Policies), re-exported
   through `typst-embed`.
 
+Re-exported items are part of this crate's public API, and the three crates are released
+in lockstep at one version, so a `diotypst` type is the same type as its `typst-embed` or
+`typst-package-source` original. Both crates are also re-exported whole, so anything not
+lifted to the root is reachable as `diotypst::typst_embed::…` or
+`diotypst::typst_package_source::…` without adding a direct dependency.
+
 See the [workspace README](https://github.com/sagikazarmark/diotypst) for the full
 documentation, design terminology, and live examples.
 

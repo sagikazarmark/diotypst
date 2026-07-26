@@ -55,6 +55,22 @@ fn typst_embed_alias_builds_the_existing_project_model() {
 }
 
 #[test]
+fn the_lower_crates_are_reachable_without_a_direct_dependency() {
+    // Anything not lifted to this crate's root stays reachable through the whole-crate
+    // re-exports, and a re-exported type is the same type as its original.
+    let root: Project = Project::from_source("= Title");
+    let nested: crate::typst_embed::Project = crate::typst_embed::Project::from_source("= Title");
+
+    assert_eq!(root, nested);
+
+    let spec = "@preview/example:1.2.3"
+        .parse::<crate::typst_package_source::PackageSpec>()
+        .expect("exact package spec should parse");
+
+    assert_eq!(spec, "@preview/example:1.2.3".parse().expect("spec parses"));
+}
+
+#[test]
 fn source_text_creates_a_valid_document_project() {
     let project = Project::from_source("= Title");
 
