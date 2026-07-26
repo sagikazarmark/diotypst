@@ -120,8 +120,8 @@ live in `diotypst`); `SyncPackageSource` additionally supports the opt-in
 The `pack` feature (wasm-safe) reads and writes Project Packs: single-file `.typk` archives of a
 whole Typst Project defined by the independent
 [`typst-pack`](https://github.com/sagikazarmark/typst-pack) crate. A pack carries the project
-files, vendored Package Bundles, exact external package-tree requirements, and optional embedded
-font files, so it converts straight into this crate's domain types:
+files, exact package-tree and font-container requirements, and any vendored resources, so it
+converts straight into this crate's domain types:
 
 ```rust
 # #[cfg(feature = "pack")]
@@ -143,14 +143,16 @@ assert_eq!(pack.project().root_path().get_without_slash(), "main.typ");
 # }
 ```
 
-`ProjectPack::render_environment` installs the vendored Package Bundles and embedded fonts;
-if `external_packages` is not empty, it refuses to produce a render-ready environment. Start
-Package Source resolution from `ProjectPack::preparation_environment`, then pass the resolved
-bundles to `ProjectPack::render_environment_with_external_packages` for exact tree verification.
-When creating such a requirement, pass the complete package tree to
-`ProjectPackBuilder::external_package_bundle`; its files establish the required tree identity but
-are not stored in the pack. Packs that require external font containers or an embedded font-face
-catalog that the Font Set cannot represent are rejected.
+`ProjectPack::render_environment` is the self-contained shortcut: it installs vendored packages
+and embedded fonts, and reports any external requirement that remains. When an app already has a
+Render Environment containing deliberately unvendored resources, use
+`pack.render_environment_from(&base)`. The base supplies exact package and font fulfillments plus
+the Render Date and System Inputs; undeclared ambient resources do not enter the result.
+
+`ProjectPack::environment_builder` is the extensible path for supplying Package Bundles, font
+containers, or Render Context separately. `ProjectPackBuilder::external_package_bundle` and
+`ProjectPackBuilder::external_font_file` inspect complete resources to establish their identities
+without storing their bytes in the archive.
 
 ## Overlays
 

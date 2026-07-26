@@ -101,7 +101,7 @@ A verbatim Typst Universe `.tar.gz` archive downloaded ahead of time for embeddi
 _Avoid_: Re-packed archive, unpacked loose files as the exchange format
 
 **Project Pack**:
-A portable single-file `.typk` archive of a whole Typst Project: project files, vendored Package Bundles, exact external package-tree requirements, and optional embedded font files. The format belongs to the independent `typst-pack` crate; packages inside a pack are project-level cargo, not a replacement for Vendored Package Archives on the registry side.
+A portable single-file `.typk` archive of a whole Typst Project: project files, exact package-tree and font-container requirements, and any vendored resources. The format belongs to the independent `typst-pack` crate; packages inside a pack are project-level cargo, not a replacement for Vendored Package Archives on the registry side.
 _Avoid_: Project bundle, re-packed Universe archive, tar.gz project export
 
 **Lazy Package Resolution**:

@@ -71,8 +71,8 @@ pub use typst_project::{
 };
 #[cfg(feature = "pack")]
 pub use typst_project::{
-    ExternalPackageRequirement, PROJECT_PACK_EXTENSION, ProjectPack, ProjectPackBuilder,
-    ProjectPackError, ProjectPackMetadata,
+    ExternalFontRequirement, ExternalPackageRequirement, PROJECT_PACK_EXTENSION, ProjectPack,
+    ProjectPackBuilder, ProjectPackEnvironmentBuilder, ProjectPackError, ProjectPackMetadata,
 };
 pub use typst_project::{
     FontSet, RenderDate, RenderEnvironment, RenderEnvironmentBuilder, RenderEnvironmentError,
