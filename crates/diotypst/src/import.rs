@@ -109,13 +109,28 @@ impl Default for FileImportOptions {
 }
 
 /// A Project Import failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum FileImportError {
     /// A file could not be read from the file input.
-    Read { name: String, message: String },
+    #[error("`{name}` could not be read from the file input: {message}")]
+    Read {
+        /// The name of the file that could not be read.
+        name: String,
+        /// What went wrong while reading.
+        message: String,
+    },
 
     /// A file exceeds the configured size limit.
-    TooLarge { name: String, size: u64, limit: u64 },
+    #[error("`{name}` is {size} bytes, over the {limit}-byte import limit")]
+    TooLarge {
+        /// The name of the oversized file.
+        name: String,
+        /// The file's size in bytes.
+        size: u64,
+        /// The configured limit in bytes.
+        limit: u64,
+    },
 }
 
 /// Read Dioxus file input files into classified imported files.

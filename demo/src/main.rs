@@ -112,7 +112,7 @@ async fn main() {
         axum::extract::Form(form): axum::extract::Form<DemoServerDownloadForm>,
     ) -> impl IntoResponse {
         use diotypst::{
-            Project, DownloadFormat, PageImageOptions, ServerRenderRequest,
+            DownloadFormat, PageImageOptions, Project, ServerRenderRequest,
             server_render_download_response,
         };
 

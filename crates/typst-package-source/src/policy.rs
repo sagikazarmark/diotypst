@@ -132,10 +132,18 @@ impl<'de> serde::Deserialize<'de> for PackagePattern {
 }
 
 /// A package pattern parsing failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackagePatternError {
     /// The pattern is not a namespace, name, or exact Package Spec pattern.
-    Invalid { pattern: String },
+    #[error(
+        "`{pattern}` is not a package pattern; expected a namespace (`@preview`), a name \
+         (`@preview/example`), or an exact spec (`@preview/example:1.2.3`)"
+    )]
+    Invalid {
+        /// The rejected pattern text.
+        pattern: String,
+    },
 }
 
 /// An explicit allowlist/denylist deciding which packages a Package Source may resolve.

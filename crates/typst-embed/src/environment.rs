@@ -203,7 +203,7 @@ impl<'de> serde::Deserialize<'de> for RenderEnvironment {
             .inputs(fields.inputs)
             .build()
             .map_err(|error| {
-                serde::de::Error::custom(format!("invalid Render Environment: {error:?}"))
+                serde::de::Error::custom(format!("invalid Render Environment: {error}"))
             })
     }
 }
@@ -289,10 +289,15 @@ impl RenderEnvironmentBuilder {
 }
 
 /// A render environment validation failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum RenderEnvironmentError {
     /// More than one Package Bundle has the same exact package spec.
-    DuplicatePackage { spec: PackageSpec },
+    #[error("more than one package bundle has the exact spec {spec}")]
+    DuplicatePackage {
+        /// The exact package spec that appeared more than once.
+        spec: PackageSpec,
+    },
 }
 
 #[cfg(test)]

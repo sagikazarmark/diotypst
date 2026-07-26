@@ -179,7 +179,7 @@ impl WorldPreparationState {
                 Some(error) => self.set_status(
                     spec,
                     PackagePreparationStatus::Failed,
-                    Some(format!("{error:?}")),
+                    Some(error.to_string()),
                 ),
             },
         }

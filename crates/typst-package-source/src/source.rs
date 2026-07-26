@@ -115,12 +115,18 @@ impl<S: SyncPackageSource> PackageSource for SyncAdapter<S> {
 }
 
 /// A Package Source resolution failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackageResolveError {
     /// The requested exact package was not available from the source.
-    NotFound { spec: PackageSpec },
+    #[error("package {spec} is not available from this source")]
+    NotFound {
+        /// The requested exact package spec.
+        spec: PackageSpec,
+    },
 
     /// The package exists, but not in the requested version.
+    #[error("package {spec} is not available in that version; the latest is {latest}")]
     VersionNotFound {
         /// The requested exact package spec.
         spec: PackageSpec,
@@ -129,17 +135,36 @@ pub enum PackageResolveError {
     },
 
     /// The requested exact package was denied by a Package Policy.
-    Denied { spec: PackageSpec },
+    #[error("package {spec} is denied by the package policy")]
+    Denied {
+        /// The denied exact package spec.
+        spec: PackageSpec,
+    },
 
     /// The retrieved package data could not be read as a Package Bundle.
-    Malformed { spec: PackageSpec, message: String },
+    #[error("package {spec} could not be read as a package bundle: {message}")]
+    Malformed {
+        /// The exact package spec whose data could not be read.
+        spec: PackageSpec,
+        /// What went wrong while reading the package data.
+        message: String,
+    },
 
     /// The source failed to retrieve the package, such as a network or storage failure.
-    Retrieval { spec: PackageSpec, message: String },
+    #[error("package {spec} could not be retrieved: {message}")]
+    Retrieval {
+        /// The exact package spec that could not be retrieved.
+        spec: PackageSpec,
+        /// What went wrong while retrieving the package.
+        message: String,
+    },
 
     /// Every source in a chain failed with a non-`NotFound` error.
+    #[error("every source in the chain failed to resolve {spec} ({} errors)", errors.len())]
     Exhausted {
+        /// The exact package spec no source could resolve.
         spec: PackageSpec,
+        /// What each source in the chain reported.
         errors: Vec<PackageResolveError>,
     },
 }
@@ -186,10 +211,15 @@ impl PackageSource for MemoryPackages {
 }
 
 /// An in-memory Package Source construction failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum MemoryPackagesError {
     /// More than one Package Bundle has the same exact package spec.
-    DuplicatePackage { spec: PackageSpec },
+    #[error("more than one package bundle has the exact spec {spec}")]
+    DuplicatePackage {
+        /// The exact package spec that appeared more than once.
+        spec: PackageSpec,
+    },
 }
 
 /// An ordered chain of Package Sources tried until one resolves.

@@ -21,12 +21,15 @@ pub trait PackageArchiveFetcher: Send + Sync + 'static {
 
 /// A package archive fetch failure.
 #[cfg(feature = "server")]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackageArchiveFetchError {
     /// The upstream registry does not serve this archive.
+    #[error("the upstream registry does not serve this archive")]
     NotFound,
 
     /// The upstream fetch failed, such as a network error.
+    #[error("the upstream archive fetch failed: {0}")]
     Failed(String),
 }
 
@@ -128,7 +131,7 @@ fn proxy_error_response(error: PackageProxyError) -> (axum::http::StatusCode, St
     let status = axum::http::StatusCode::from_u16(error.http_status())
         .expect("proxy status codes are valid");
 
-    (status, format!("{error:?}"))
+    (status, error.to_string())
 }
 
 #[cfg(feature = "server")]

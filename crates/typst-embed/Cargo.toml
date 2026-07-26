@@ -41,6 +41,7 @@ lazy-packages = []
 typst-package-source.workspace = true
 
 serde = { workspace = true, optional = true }
+thiserror.workspace = true
 typst.workspace = true
 typst-html = { workspace = true, optional = true }
 typst-kit.workspace = true
@@ -53,3 +54,9 @@ typst-render = { workspace = true, optional = true }
 pollster.workspace = true
 tempfile.workspace = true
 typst-assets = { workspace = true, features = ["fonts"] }
+
+[package.metadata.docs.rs]
+# The API is feature-gated throughout; document all of it, and label each item
+# with the feature that unlocks it.
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! Explicit, policy-gated Typst package resolution.
 //!
 //! This crate owns the Package Source seam and everything that satisfies it: in-memory

@@ -1016,6 +1016,7 @@ dependencies = [
  "dioxus",
  "js-sys",
  "serde",
+ "thiserror 2.0.18",
  "typst",
  "typst-embed",
  "typst-package-source",
@@ -5393,6 +5394,7 @@ name = "typst-embed"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "thiserror 2.0.18",
  "typst",
  "typst-html",
  "typst-kit",
@@ -5618,6 +5620,7 @@ dependencies = [
  "flate2",
  "serde",
  "tar",
+ "thiserror 2.0.18",
  "typst-kit",
  "typst-library",
  "typst-syntax",

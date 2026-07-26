@@ -41,13 +41,16 @@ impl DownloadFormat {
 }
 
 /// A Download Action failure while rendering on demand.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum RenderDownloadError {
     /// Typst rendering failed.
-    Render(RenderError),
+    #[error("the download could not be rendered")]
+    Render(#[source] RenderError),
 
     /// The rendered artifact could not be prepared as the requested download.
-    Download(DownloadError),
+    #[error("the rendered artifact could not be prepared as the requested download")]
+    Download(#[source] DownloadError),
 }
 
 impl From<RenderError> for RenderDownloadError {
@@ -207,12 +210,15 @@ impl DownloadFile {
 }
 
 /// A download preparation failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum DownloadError {
     /// No suitable Render Artifact is available for the requested download.
+    #[error("no render artifact is available for the requested download")]
     Unavailable,
 
     /// The Render Artifact exists but is not a supported download format.
+    #[error("the render artifact is not a downloadable format")]
     UnsupportedArtifact,
 }
 
@@ -272,18 +278,23 @@ pub fn trigger_browser_download(file: &DownloadFile) -> Result<(), BrowserDownlo
 
 /// A browser Download Action failure.
 #[cfg(target_arch = "wasm32")]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum BrowserDownloadError {
     /// No browser window is available.
+    #[error("no browser window is available")]
     WindowUnavailable,
 
     /// No document is available in the browser window.
+    #[error("no document is available in the browser window")]
     DocumentUnavailable,
 
     /// No document body is available to host the temporary download link.
+    #[error("no document body is available to host the temporary download link")]
     DocumentBodyUnavailable,
 
     /// A browser DOM, Blob, or object URL operation failed.
+    #[error("a browser DOM, blob, or object URL operation failed")]
     BrowserOperationFailed,
 }
 

@@ -123,6 +123,41 @@ fn project_validation_rejects_paths_that_escape_the_project_root() {
 }
 
 #[test]
+fn errors_display_a_user_facing_message() {
+    let error = Project::builder("main.typ")
+        .source_file("chapters/intro.typ", "= Intro")
+        .build()
+        .expect_err("a missing root entrypoint should fail validation");
+
+    assert_eq!(
+        error.to_string(),
+        "the root entrypoint `main.typ` is not one of the project's files"
+    );
+    assert_eq!(
+        DownloadError::Unavailable.to_string(),
+        "no render artifact is available for the requested download"
+    );
+}
+
+#[test]
+fn errors_are_std_errors_that_expose_their_source() {
+    let project_error = ProjectValidationError::DuplicatePath {
+        path: "main.typ".to_owned(),
+    };
+    let error = RenderError::Project(project_error.clone());
+
+    // The `?` operator into a boxed trait object is the common consumer path.
+    let boxed: Box<dyn std::error::Error> = Box::new(error.clone());
+    assert_eq!(
+        boxed.to_string(),
+        "the typst project is not valid enough to render"
+    );
+
+    let source = std::error::Error::source(&error).expect("the render error should carry a source");
+    assert_eq!(source.to_string(), project_error.to_string());
+}
+
+#[test]
 fn project_paths_normalize_rooted_paths() {
     let project = Project::builder("/main.typ")
         .source_file("main.typ", "= Title")

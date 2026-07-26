@@ -1,10 +1,9 @@
 //! Support helpers for the Dioxus Typst demo UI (`web`/`server` targets).
 
 use diotypst::{
-    Project, DownloadError, FileImportError, ImportedProjectFile, PackageBundle,
-    PackagePreparationStatus, ProjectPack, ProjectPackMetadata, RenderDiagnostic, RenderError,
-    RenderSourceRange, RenderStatus, VirtualPath, ProjectValidationError, WorldPreparationPhase,
-    WorldPreparationState,
+    ImportedProjectFile, PackageBundle, PackagePreparationStatus, Project, ProjectPack,
+    ProjectPackMetadata, ProjectValidationError, RenderDiagnostic, RenderError, RenderSourceRange,
+    RenderStatus, VirtualPath, WorldPreparationPhase, WorldPreparationState,
 };
 use std::collections::HashSet;
 
@@ -149,15 +148,6 @@ pub fn pack_summary(pack: &ProjectPack) -> String {
     format!("Loaded \"{name}\": {}.", parts.join(", "))
 }
 
-pub fn file_import_error_summary(error: &FileImportError) -> String {
-    match error {
-        FileImportError::Read { name, message } => format!("Could not read {name}: {message}"),
-        FileImportError::TooLarge { name, size, limit } => {
-            format!("{name} is {size} bytes, over the {limit} byte import limit.")
-        }
-    }
-}
-
 pub fn build_imported_project<'a>(
     root_path: impl Into<String>,
     files: impl IntoIterator<Item = &'a ImportedProjectFile>,
@@ -257,35 +247,18 @@ pub fn render_status_label(status: RenderStatus) -> &'static str {
     }
 }
 
-pub fn project_validation_summary(error: &ProjectValidationError) -> String {
-    match error {
-        ProjectValidationError::InvalidPath { path } => format!(
-            "Project path {path} is invalid. Use root-relative paths inside the imported project."
-        ),
-        ProjectValidationError::DuplicatePath { path } => {
-            format!("Project path {path} appears more than once after normalization.")
-        }
-        ProjectValidationError::MissingRoot { root } => {
-            format!("Root entrypoint {root} was not found in the imported project.")
-        }
-    }
-}
-
+/// Present a render failure, expanding diagnostics to one located line each.
+///
+/// Every other variant already carries a usable message, so this only adds what
+/// `Display` cannot: the Project Path and source range of each diagnostic.
 pub fn render_error_summary(error: &RenderError) -> String {
     match error {
-        RenderError::Project(error) => project_validation_summary(error),
         RenderError::Diagnostics(diagnostics) => diagnostics
             .iter()
             .map(render_diagnostic_summary)
             .collect::<Vec<_>>()
             .join("\n"),
-        RenderError::ImageEncoding(message) => format!("Image encoding failed: {message}"),
-        RenderError::UnsupportedFormat { format } => {
-            format!("This build has no Render Capability for {format:?}.")
-        }
-        RenderError::UnsupportedTarget { target } => {
-            format!("This build has no Render Capability for the {target:?} preflight target.")
-        }
+        error => error.to_string(),
     }
 }
 
@@ -322,21 +295,12 @@ fn render_source_range_label(range: RenderSourceRange) -> String {
     }
 }
 
-pub fn download_error_summary(error: &DownloadError) -> &'static str {
-    match error {
-        DownloadError::Unavailable => "No current or stale artifact is available to download.",
-        DownloadError::UnsupportedArtifact => {
-            "HTML artifacts are preview-only and cannot be downloaded."
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use diotypst::{
-        render_html, use_typst_render, Project, HeadlessRender, RenderArtifact,
-        RenderEnvironment, RenderFormat, ProjectValidationError,
+        HeadlessRender, Project, ProjectValidationError, RenderArtifact, RenderEnvironment,
+        RenderFormat, render_html, use_typst_render,
     };
     use dioxus::prelude::*;
     use std::cell::RefCell;
@@ -422,11 +386,7 @@ mod tests {
         }
 
         let (_failed_dom, mut failed_renderer) = render_signal_from_hook();
-        render_headless_html(
-            &mut failed_renderer.write(),
-            &broken_project,
-            &environment,
-        );
+        render_headless_html(&mut failed_renderer.write(), &broken_project, &environment);
 
         let failed_renderer = failed_renderer.read();
         let failed_state = failed_renderer.state();
@@ -515,18 +475,6 @@ mod tests {
     }
 
     #[test]
-    fn demo_download_errors_are_user_facing() {
-        assert_eq!(
-            download_error_summary(&diotypst::DownloadError::Unavailable),
-            "No current or stale artifact is available to download."
-        );
-        assert_eq!(
-            download_error_summary(&diotypst::DownloadError::UnsupportedArtifact),
-            "HTML artifacts are preview-only and cannot be downloaded."
-        );
-    }
-
-    #[test]
     fn imported_files_build_a_renderable_document_project() {
         let files = [
             ImportedProjectFile::new(
@@ -544,8 +492,8 @@ mod tests {
             .build()
             .expect("render environment should be valid");
 
-        let project = build_imported_project("main.typ", &files)
-            .expect("imported project should be valid");
+        let project =
+            build_imported_project("main.typ", &files).expect("imported project should be valid");
         let html = render_html(&project, &environment)
             .expect("imported project should render through the project world");
 
@@ -554,9 +502,10 @@ mod tests {
             project.file_bytes("chapters/intro.typ"),
             Some("Included from the imported project.".as_bytes())
         );
-        assert!(html
-            .as_str()
-            .contains("<p>Included from the imported project.</p>"));
+        assert!(
+            html.as_str()
+                .contains("<p>Included from the imported project.</p>")
+        );
     }
 
     #[test]
@@ -592,9 +541,10 @@ mod tests {
         let html =
             render_html(&project, &environment).expect("embedded package template should render");
 
-        assert!(html
-            .as_str()
-            .contains("Rendered from an embedded Package Bundle"));
+        assert!(
+            html.as_str()
+                .contains("Rendered from an embedded Package Bundle")
+        );
     }
 
     #[test]
@@ -610,9 +560,10 @@ mod tests {
         let html =
             render_html(pack.project(), &environment).expect("loaded pack should render offline");
 
-        assert!(html
-            .as_str()
-            .contains("Rendered from an embedded Package Bundle"));
+        assert!(
+            html.as_str()
+                .contains("Rendered from an embedded Package Bundle")
+        );
         assert_eq!(
             pack_summary(&pack),
             "Loaded \"diotypst demo badge\": 1 project files, 1 vendored packages."
@@ -652,28 +603,6 @@ mod tests {
         assert_eq!(
             preparation_summary(&state),
             "packages: preparing - @preview/cetz:0.4.2 (downloading)"
-        );
-    }
-
-    #[test]
-    fn project_validation_errors_are_user_facing() {
-        assert_eq!(
-            project_validation_summary(&ProjectValidationError::InvalidPath {
-                path: "../secret.typ".to_owned(),
-            }),
-            "Project path ../secret.typ is invalid. Use root-relative paths inside the imported project."
-        );
-        assert_eq!(
-            project_validation_summary(&ProjectValidationError::DuplicatePath {
-                path: "chapters/intro.typ".to_owned(),
-            }),
-            "Project path chapters/intro.typ appears more than once after normalization."
-        );
-        assert_eq!(
-            project_validation_summary(&ProjectValidationError::MissingRoot {
-                root: "main.typ".to_owned(),
-            }),
-            "Root entrypoint main.typ was not found in the imported project."
         );
     }
 }

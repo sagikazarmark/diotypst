@@ -185,6 +185,18 @@ pub enum PackageDependencyTarget {
     Html,
 }
 
+impl std::fmt::Display for PackageDependencyTarget {
+    /// Write the target's name: `paged` or `html`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::Paged => "paged",
+            Self::Html => "html",
+        };
+
+        f.write_str(name)
+    }
+}
+
 /// Package dependencies observed during a preflight compile.
 ///
 /// These packages are evidence from one compile pass. They are not a canonical template contract:
@@ -270,20 +282,25 @@ pub fn observe_package_dependencies_world(
 }
 
 /// A render failure.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum RenderError {
     /// The Typst Project was not valid enough to render.
-    Project(ProjectValidationError),
+    #[error("the typst project is not valid enough to render")]
+    Project(#[source] ProjectValidationError),
 
     /// Typst reported diagnostics while compiling or exporting.
+    #[error("typst reported {} diagnostic(s) while rendering", .0.len())]
     Diagnostics(Vec<RenderDiagnostic>),
 
     /// A rendered Page Image could not be encoded.
+    #[error("a rendered page image could not be encoded: {0}")]
     ImageEncoding(String),
 
     /// The requested Render Format's backend is not part of this build.
     ///
     /// Render Capabilities are features: `pdf`, `page-images`, and `html`.
+    #[error("this build has no `{format}` render backend; enable the `{format}` feature")]
     UnsupportedFormat {
         /// The requested format.
         format: RenderFormat,
@@ -292,6 +309,10 @@ pub enum RenderError {
     /// The preflight target's backend is not part of this build.
     ///
     /// The Paged target needs the `pdf` or `page-images` feature; the Html target needs `html`.
+    #[error(
+        "this build has no render backend for the `{target}` preflight target; the paged target \
+         needs the `pdf` or `page-images` feature, and the html target needs `html`"
+    )]
     UnsupportedTarget {
         /// The requested preflight target.
         target: PackageDependencyTarget,

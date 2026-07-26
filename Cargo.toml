@@ -17,6 +17,7 @@ typst-package-source = { path = "crates/typst-package-source", version = "0.1.0"
 pollster = "1.0"
 serde = { version = "1", features = ["derive", "rc"] }
 tempfile = "3"
+thiserror = "2"
 # The typst crates are one release train: mixed versions fail to compile against
 # each other, so the whole family is pinned to one exact version, in one place.
 typst = "=0.15.1"

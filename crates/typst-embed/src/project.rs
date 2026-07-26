@@ -247,7 +247,7 @@ impl<'de> serde::Deserialize<'de> for ProjectFile {
         let fields = <ProjectFileFields as serde::Deserialize>::deserialize(deserializer)?;
 
         Self::new(fields.path, fields.bytes)
-            .map_err(|error| serde::de::Error::custom(format!("invalid Project File: {error:?}")))
+            .map_err(|error| serde::de::Error::custom(format!("invalid Project File: {error}")))
     }
 }
 
@@ -286,19 +286,32 @@ impl<'de> serde::Deserialize<'de> for Project {
         let fields = <ProjectFields as serde::Deserialize>::deserialize(deserializer)?;
 
         Self::new(fields.root_path, fields.files)
-            .map_err(|error| serde::de::Error::custom(format!("invalid Typst Project: {error:?}")))
+            .map_err(|error| serde::de::Error::custom(format!("invalid Typst Project: {error}")))
     }
 }
 
 /// A validation failure for a Typst Project.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum ProjectValidationError {
     /// A Project Path is not root-relative inside the Typst Project.
-    InvalidPath { path: String },
+    #[error("project path `{path}` is not root-relative inside the typst project")]
+    InvalidPath {
+        /// The rejected Project Path.
+        path: String,
+    },
 
     /// More than one Project File has the same Project Path.
-    DuplicatePath { path: String },
+    #[error("more than one project file has the path `{path}`")]
+    DuplicatePath {
+        /// The Project Path that appeared more than once.
+        path: String,
+    },
 
     /// The requested root Typst entrypoint does not exist in the Typst Project.
-    MissingRoot { root: String },
+    #[error("the root entrypoint `{root}` is not one of the project's files")]
+    MissingRoot {
+        /// The Project Path of the missing root entrypoint.
+        root: String,
+    },
 }

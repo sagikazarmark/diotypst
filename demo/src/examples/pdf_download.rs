@@ -1,7 +1,7 @@
-use crate::{SAMPLE_TYPST, download_error_summary, render_error_summary};
+use crate::{SAMPLE_TYPST, render_error_summary};
 use diotypst::{
-    Project, DownloadFormat, RenderDownloadError, render_download,
-    trigger_browser_download, use_typst_defaults,
+    DownloadFormat, Project, RenderDownloadError, render_download, trigger_browser_download,
+    use_typst_defaults,
 };
 use dioxus::prelude::*;
 
@@ -24,14 +24,12 @@ pub fn PdfDownloadExample() -> Element {
                 match render_download(&project, &environment, DownloadFormat::Pdf, "document.pdf") {
                     Ok(file) => match trigger_browser_download(&file) {
                         Ok(()) => status.set(format!("Downloaded {}.", file.filename())),
-                        Err(error) => status.set(format!("Browser download failed: {error:?}")),
+                        Err(error) => status.set(format!("Browser download failed: {error}")),
                     },
                     Err(RenderDownloadError::Render(error)) => {
                         status.set(render_error_summary(&error))
                     }
-                    Err(RenderDownloadError::Download(error)) => {
-                        status.set(download_error_summary(&error).to_owned())
-                    }
+                    Err(error) => status.set(error.to_string()),
                 }
             },
             "Render & download PDF"

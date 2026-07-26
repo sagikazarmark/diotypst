@@ -46,6 +46,7 @@ typst-package-source.workspace = true
 axum = { version = "0.8", default-features = false, features = ["json"], optional = true }
 dioxus = { version = "0.7", default-features = false, features = ["hooks", "signals"], optional = true }
 serde = { workspace = true, optional = true }
+thiserror.workspace = true
 typst.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -74,3 +75,9 @@ tempfile.workspace = true
 tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }
 tower = { version = "0.5", features = ["util"] }
 typst-assets = { workspace = true, features = ["fonts"] }
+
+[package.metadata.docs.rs]
+# The API is feature-gated throughout; document all of it, and label each item
+# with the feature that unlocks it.
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

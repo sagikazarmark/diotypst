@@ -123,7 +123,7 @@ impl SyncPackageSource for RegistryPackages {
         let bundle = PackageBundle::from_tar_gz(spec.clone(), &bytes).map_err(|error| {
             PackageResolveError::Malformed {
                 spec: spec.clone(),
-                message: format!("{error:?}"),
+                message: format!("{error}"),
             }
         })?;
 
