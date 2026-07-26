@@ -334,7 +334,7 @@ assert_eq!(error, DownloadError::UnsupportedArtifact);
 
 ### Pack A Project Into A Portable Archive
 
-Enable the `pack` feature (wasm-safe) to read and write Project Packs: single-file `.typk` archives of a whole Typst Project, defined by the independent [`typst-pack`](https://github.com/sagikazarmark/typst-pack) crate. A pack carries the project files, vendored Package Bundles, external package specs, and optional embedded font files, so a project can leave one app and render offline in another. Vendored Typst Universe packages remain verbatim `.tar.gz` archives on the registry side; the pack is the project-level exchange format.
+Enable the `pack` feature (wasm-safe) to read and write Project Packs: single-file `.typk` archives of a whole Typst Project, defined by the independent [`typst-pack`](https://github.com/sagikazarmark/typst-pack) crate. A pack carries the project files, vendored Package Bundles, exact external package-tree requirements, and optional embedded font files, so a project can leave one app and render offline in another. Vendored Typst Universe packages remain verbatim `.tar.gz` archives on the registry side; the pack is the project-level exchange format.
 
 ```rust
 # #[cfg(all(feature = "bundled-fonts", feature = "html", feature = "pack"))]
@@ -369,7 +369,7 @@ assert!(html.as_str().contains("Vendored in the pack."));
 # }
 ```
 
-Packs whose dependencies are not all vendored report them through `ProjectPack::external_packages`; resolve those through a Package Source with `prepare_packages` starting from `pack.render_environment()`.
+Packs whose dependencies are not all vendored report them through `ProjectPack::external_packages`. Resolve those through a Package Source with `prepare_packages` starting from `pack.preparation_environment()`, then pass the resolved bundles to `ProjectPack::render_environment_with_external_packages` for exact tree verification. `ProjectPack::render_environment` refuses to produce a render-ready environment while requirements remain unresolved. To create an external requirement, use `ProjectPackBuilder::external_package_bundle`; the complete bundle establishes the required tree identity without being stored in the pack. Packs that require external font containers or an embedded font-face catalog that the Font Set cannot represent are rejected.
 
 ## Dioxus And Server Flows
 
