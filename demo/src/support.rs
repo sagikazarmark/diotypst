@@ -139,6 +139,12 @@ pub fn pack_summary(pack: &ProjectPack) -> String {
     if !pack.font_files().is_empty() {
         parts.push(format!("{} embedded font files", pack.font_files().len()));
     }
+    if !pack.external_font_requirements().is_empty() {
+        parts.push(format!(
+            "{} external font containers to resolve",
+            pack.external_font_requirements().len()
+        ));
+    }
 
     format!("Loaded \"{name}\": {}.", parts.join(", "))
 }

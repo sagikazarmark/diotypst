@@ -334,7 +334,7 @@ assert_eq!(error, DownloadError::UnsupportedArtifact);
 
 ### Pack A Project Into A Portable Archive
 
-Enable the `pack` feature (wasm-safe) to read and write Project Packs: single-file `.typk` archives of a whole Typst Project, defined by the independent [`typst-pack`](https://github.com/sagikazarmark/typst-pack) crate. A pack carries the project files, vendored Package Bundles, exact external package-tree requirements, and optional embedded font files, so a project can leave one app and render offline in another. Vendored Typst Universe packages remain verbatim `.tar.gz` archives on the registry side; the pack is the project-level exchange format.
+Enable the `pack` feature (wasm-safe) to read and write Project Packs: single-file `.typk` archives of a whole Typst Project, defined by the independent [`typst-pack`](https://github.com/sagikazarmark/typst-pack) crate. A pack carries the project files, exact package-tree and font-container requirements, and any vendored resources, so a project can leave one app and render offline in another. Vendored Typst Universe packages remain verbatim `.tar.gz` archives on the registry side; the pack is the project-level exchange format.
 
 ```rust
 # #[cfg(all(feature = "bundled-fonts", feature = "html", feature = "pack"))]
@@ -369,7 +369,7 @@ assert!(html.as_str().contains("Vendored in the pack."));
 # }
 ```
 
-Packs whose dependencies are not all vendored report them through `ProjectPack::external_packages`. Resolve those through a Package Source with `prepare_packages` starting from `pack.preparation_environment()`, then pass the resolved bundles to `ProjectPack::render_environment_with_external_packages` for exact tree verification. `ProjectPack::render_environment` refuses to produce a render-ready environment while requirements remain unresolved. To create an external requirement, use `ProjectPackBuilder::external_package_bundle`; the complete bundle establishes the required tree identity without being stored in the pack. Packs that require external font containers or an embedded font-face catalog that the Font Set cannot represent are rejected.
+`ProjectPack::render_environment` is the self-contained shortcut. For deliberately unvendored resources, `pack.render_environment_from(&base)` uses matching packages and fonts from an existing Render Environment, verifies their exact identities, preserves its Render Date and System Inputs, and excludes undeclared ambient resources. `ProjectPack::environment_builder` accepts Package Bundles, font containers, and Render Context separately for custom preparation flows. `ProjectPackBuilder::external_package_bundle` and `ProjectPackBuilder::external_font_file` establish external resource identities without storing their bytes in the pack.
 
 ## Dioxus And Server Flows
 

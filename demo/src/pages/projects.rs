@@ -64,7 +64,7 @@ pub fn ProjectPacks() -> Element {
         PageHeader {
             eyebrow: "Typst Projects",
             title: "Portable project packs (.typk)",
-            intro: "A Project Pack is a single .typk archive of a whole Typst Project: sources, assets, vendored Package Bundles, and optional embedded fonts. Packs read and write in the browser, so a project can leave one app and render offline in another.",
+            intro: "A Project Pack is a single .typk archive of a whole Typst Project: sources, assets, exact package and font requirements, and any vendored resources. Packs read and write in the browser, so a project can leave one app and render offline in another.",
         }
         ExampleSection {
             title: "ProjectPack::builder + ProjectPack::from_bytes",
@@ -80,7 +80,7 @@ pub fn ProjectPacks() -> Element {
         }
         DocsCallout {
             title: "The .typk format",
-            "The format is defined by the independent typst-pack crate: a Zip archive with a typst-pack.toml manifest, project/ files, packages/ for vendored dependencies, and fonts/ for embedded fonts. Vendored Typst Universe packages stay verbatim .tar.gz archives on the registry side; a pack is the project-level exchange format."
+            "The format is defined by the independent typst-pack crate: a Zip archive with a typst-pack.toml manifest, project/ files, exact dependency identities, and any embedded package or font data. Vendored Typst Universe packages stay verbatim .tar.gz archives on the registry side; a pack is the project-level exchange format."
         }
     }
 }

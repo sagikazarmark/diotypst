@@ -58,16 +58,12 @@ pub fn PackExample() -> Element {
                                     };
                                     match ProjectPack::from_bytes(&bytes) {
                                         Ok(pack) => {
-                                            let font_set = base_environment
-                                                .font_set()
-                                                .clone()
-                                                .with_font_files(pack.font_files().iter().cloned());
-                                            let environment = base_environment
-                                                .to_builder()
-                                                .package_bundles(pack.package_bundles().iter().cloned())
-                                                .font_set(font_set)
-                                                .build()
-                                                .expect("pack environment should be valid");
+                                            let environment = match pack.render_environment_from(&base_environment) {
+                                                Ok(environment) => environment,
+                                                Err(error) => {
+                                                    return status.set(format!("Pack resources could not be fulfilled: {error:?}"));
+                                                }
+                                            };
                                             renderer
                                                 .write()
                                                 .render(pack.project(), &environment, RenderFormat::Html);

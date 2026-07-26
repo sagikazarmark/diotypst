@@ -92,6 +92,20 @@ impl FontSet {
                     .collect::<Vec<_>>()
                     .into(),
             ),
+            FontSetSource::Faces(faces) => FontSetSource::Faces(
+                faces
+                    .iter()
+                    .cloned()
+                    .chain(additional.into_iter().flat_map(|bytes| {
+                        let face_count = FontInfo::iter(&bytes).count() as u32;
+                        (0..face_count).map(move |index| FontFace {
+                            bytes: Arc::clone(&bytes),
+                            index,
+                        })
+                    }))
+                    .collect::<Vec<_>>()
+                    .into(),
+            ),
             #[cfg(feature = "bundled-fonts")]
             FontSetSource::BundledPlusFiles(files) => FontSetSource::BundledPlusFiles(
                 files
@@ -117,6 +131,7 @@ impl FontSet {
             #[cfg(feature = "bundled-fonts")]
             FontSetSource::Bundled => store.extend(typst_kit::fonts::embedded()),
             FontSetSource::Files(font_files) => extend_with_font_files(&mut store, font_files),
+            FontSetSource::Faces(faces) => extend_with_font_faces(&mut store, faces),
             #[cfg(feature = "bundled-fonts")]
             FontSetSource::BundledPlusFiles(font_files) => {
                 store.extend(typst_kit::fonts::embedded());
@@ -125,6 +140,39 @@ impl FontSet {
         }
 
         store
+    }
+
+    pub(crate) fn from_font_faces(faces: impl IntoIterator<Item = (Vec<u8>, u32)>) -> Self {
+        Self {
+            source: FontSetSource::Faces(
+                faces
+                    .into_iter()
+                    .map(|(bytes, index)| FontFace {
+                        bytes: Arc::from(bytes),
+                        index,
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+            ),
+        }
+    }
+
+    pub(crate) fn container_files_where(
+        &self,
+        mut predicate: impl FnMut(&[u8]) -> bool,
+    ) -> Vec<Vec<u8>> {
+        let store = self.font_store();
+        let mut seen = std::collections::HashSet::new();
+        let mut files = Vec::new();
+        let mut index = 0;
+        while let Some(font) = store.font(index) {
+            let identity = typst::utils::hash128(font.data());
+            if seen.insert(identity) && predicate(font.data()) {
+                files.push(font.data().to_vec());
+            }
+            index += 1;
+        }
+        files
     }
 }
 
@@ -146,6 +194,14 @@ enum FontSetSource {
     Files(Arc<[Arc<[u8]>]>),
     #[cfg(feature = "bundled-fonts")]
     BundledPlusFiles(Arc<[Arc<[u8]>]>),
+    Faces(Arc<[FontFace]>),
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct FontFace {
+    bytes: Arc<[u8]>,
+    index: u32,
 }
 
 fn extend_with_font_files(store: &mut FontStore, font_files: &[Arc<[u8]>]) {
@@ -160,6 +216,21 @@ fn extend_with_font_files(store: &mut FontStore, font_files: &[Arc<[u8]>]) {
                 info,
             ));
         }
+    }
+}
+
+fn extend_with_font_faces(store: &mut FontStore, faces: &[FontFace]) {
+    for face in faces {
+        let Some(info) = FontInfo::new(&face.bytes, face.index) else {
+            continue;
+        };
+        store.push((
+            BytesFace {
+                bytes: Bytes::new(Arc::clone(&face.bytes)),
+                index: face.index,
+            },
+            info,
+        ));
     }
 }
 
@@ -205,6 +276,10 @@ mod tests {
             }
             #[cfg(feature = "bundled-fonts")]
             _ => panic!("an empty Font Set extended with files should remain file-backed"),
+            #[cfg(not(feature = "bundled-fonts"))]
+            (FontSetSource::Faces(_), _) | (_, FontSetSource::Faces(_)) => {
+                panic!("an empty Font Set extended with files should remain file-backed")
+            }
         };
 
         assert!(Arc::ptr_eq(files, cloned_files));

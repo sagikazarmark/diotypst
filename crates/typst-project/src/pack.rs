@@ -1,7 +1,8 @@
 use crate::{
     DocumentWorkspace, FontSet, PackageBundle, PackageBundleError, PackageBundleSet, PackageSpec,
-    RenderEnvironment, RenderEnvironmentError, WorkspaceValidationError,
+    RenderDate, RenderEnvironment, RenderEnvironmentError, WorkspaceValidationError,
 };
+use typst::foundations::{Dict, IntoValue};
 
 /// The conventional file extension for Project Pack archives.
 pub const PROJECT_PACK_EXTENSION: &str = typst_pack::FILE_EXTENSION;
@@ -21,7 +22,10 @@ pub struct ProjectPack {
     external_packages: Vec<PackageSpec>,
     external_package_requirements: Vec<ExternalPackageRequirement>,
     external_package_bundles: Vec<PackageBundle>,
+    font_catalog: Vec<ProjectPackFontFace>,
+    external_font_requirements: Vec<ExternalFontRequirement>,
     font_files: Vec<Vec<u8>>,
+    builder_font_faces: Vec<ProjectPackBuilderFontFace>,
     metadata: Option<ProjectPackMetadata>,
     source_bytes: Option<Vec<u8>>,
 }
@@ -32,6 +36,8 @@ impl PartialEq for ProjectPack {
             && self.package_bundles == other.package_bundles
             && self.external_packages == other.external_packages
             && self.external_package_requirements == other.external_package_requirements
+            && self.font_catalog == other.font_catalog
+            && self.external_font_requirements == other.external_font_requirements
             && self.font_files == other.font_files
             && self.metadata == other.metadata
     }
@@ -46,7 +52,8 @@ impl ProjectPack {
             project,
             package_bundles: Vec::new(),
             external_package_bundles: Vec::new(),
-            font_files: Vec::new(),
+            font_faces: Vec::new(),
+            invalid_font: false,
             metadata: None,
         }
     }
@@ -99,36 +106,33 @@ impl ProjectPack {
             .map(|requirement| requirement.spec.clone())
             .collect();
 
-        if pack
+        let external_font_requirements = pack
             .font_requirements()
             .iter()
-            .any(|requirement| !requirement.is_embedded())
-        {
-            return Err(ProjectPackError::UnsupportedExternalFonts);
-        }
+            .filter(|requirement| !requirement.is_embedded())
+            .map(|requirement| ExternalFontRequirement {
+                container_digest: requirement.container_identity().digest(),
+                container_length: requirement.container_length(),
+                face_indices: requirement.face_indices().to_vec(),
+            })
+            .collect();
+        let font_catalog = pack
+            .font_catalog()
+            .iter()
+            .map(|face| ProjectPackFontFace {
+                container_digest: face.identity().container().digest(),
+                index: face.identity().index(),
+                embedded: face.is_embedded(),
+            })
+            .collect();
 
-        // Faces of one font collection share an archive entry; keep each
-        // font file once for the Font Set.
-        let mut font_paths = std::collections::HashSet::new();
-        let mut actual_font_catalog = Vec::new();
-        let mut expected_font_catalog = Vec::new();
+        let mut font_containers = std::collections::HashSet::new();
         let mut font_files = Vec::new();
         for font in pack.fonts() {
-            let path = font.manifest().path();
-            actual_font_catalog.push((path.to_owned(), font.manifest().index()));
-            if font_paths.insert(path.to_owned()) {
-                expected_font_catalog.extend(
-                    (0..)
-                        .take_while(|index| {
-                            typst::text::FontInfo::new(font.data(), *index).is_some()
-                        })
-                        .map(|index| (path.to_owned(), index)),
-                );
+            let digest = typst_pack::FontContainerIdentity::from_bytes(font.data()).digest();
+            if font_containers.insert(digest) {
                 font_files.push(font.data().to_vec());
             }
-        }
-        if actual_font_catalog != expected_font_catalog {
-            return Err(ProjectPackError::UnsupportedFontCatalog);
         }
 
         let metadata = pack.manifest().metadata().map(|metadata| {
@@ -151,7 +155,10 @@ impl ProjectPack {
             external_packages,
             external_package_requirements,
             external_package_bundles: Vec::new(),
+            font_catalog,
+            external_font_requirements,
             font_files,
+            builder_font_faces: Vec::new(),
             metadata,
             source_bytes: Some(source_bytes),
         })
@@ -190,19 +197,13 @@ impl ProjectPack {
             }
         }
 
-        for data in &self.font_files {
-            // Embed every face of a font collection; plain font files have
-            // exactly one face at index zero.
-            let mut index = 0;
-            while typst::text::FontInfo::new(data, index).is_some() {
-                pack = pack
-                    .font(data.clone(), index)
-                    .map_err(|error| archive_error(&error))?;
-                index += 1;
+        for face in &self.builder_font_faces {
+            pack = if face.embedded {
+                pack.font(face.data.clone(), face.index)
+            } else {
+                pack.external_font(face.data.clone(), face.index)
             }
-            if index == 0 {
-                return Err(ProjectPackError::UnrecognizedFont);
-            }
+            .map_err(|error| archive_error(&error))?;
         }
 
         if let Some(metadata) = &self.metadata {
@@ -251,21 +252,9 @@ impl ProjectPack {
         &self,
         environment: &RenderEnvironment,
     ) -> Result<(), ProjectPackError> {
-        for expected in &self.external_package_requirements {
-            let bundle = environment.package_bundle(&expected.spec).ok_or_else(|| {
-                ProjectPackError::MissingExternalPackage {
-                    spec: expected.spec.clone(),
-                }
-            })?;
-            let actual = external_package_requirement(bundle)?;
-            if actual != *expected {
-                return Err(ProjectPackError::MismatchedExternalPackage {
-                    spec: expected.spec.clone(),
-                });
-            }
-        }
-
-        Ok(())
+        verify_external_package_requirements(&self.external_package_requirements, |spec| {
+            environment.package_bundle(spec)
+        })
     }
 
     /// Return the embedded font files.
@@ -273,30 +262,56 @@ impl ProjectPack {
         &self.font_files
     }
 
+    /// Return the exact external font-container requirements carried by the pack.
+    pub fn external_font_requirements(&self) -> &[ExternalFontRequirement] {
+        &self.external_font_requirements
+    }
+
     /// Return the optional descriptive metadata.
     pub fn metadata(&self) -> Option<&ProjectPackMetadata> {
         self.metadata.as_ref()
     }
 
-    /// Return the exact embedded Font Set declared by this pack.
+    /// Return the embedded portion of this pack's exact Font Set.
     pub fn font_set(&self) -> FontSet {
-        FontSet::from_font_files(self.font_files.clone())
+        let containers = self.font_containers(std::iter::empty::<&Vec<u8>>());
+        FontSet::from_font_faces(
+            self.font_catalog
+                .iter()
+                .filter(|face| face.embedded)
+                .map(|face| (containers[&face.container_digest].clone(), face.index)),
+        )
+    }
+
+    /// Start building a render environment from this pack.
+    pub fn environment_builder(&self) -> ProjectPackEnvironmentBuilder<'_> {
+        ProjectPackEnvironmentBuilder {
+            pack: self,
+            package_bundles: Vec::new(),
+            font_files: Vec::new(),
+            render_date: RenderDate::default(),
+            inputs: Dict::new(),
+        }
     }
 
     /// Build a render-ready Render Environment from this pack.
     ///
-    /// Packs with external package requirements must use
-    /// [`preparation_environment`](Self::preparation_environment) while
-    /// resolving them, then [`render_environment_with_external_packages`](Self::render_environment_with_external_packages).
+    /// This succeeds directly for a self-contained pack and reports any exact
+    /// external package or font requirement that still needs fulfillment.
     pub fn render_environment(&self) -> Result<RenderEnvironment, ProjectPackError> {
-        if !self.external_packages.is_empty() {
-            return Err(ProjectPackError::UnresolvedExternalPackages {
-                packages: self.external_packages.clone(),
-            });
-        }
+        self.environment_builder().build()
+    }
 
-        self.preparation_environment()
-            .map_err(ProjectPackError::Environment)
+    /// Build a render environment using a base environment as the source for
+    /// Render Context and exact external resource fulfillments.
+    pub fn render_environment_from(
+        &self,
+        base: &RenderEnvironment,
+    ) -> Result<RenderEnvironment, ProjectPackError> {
+        self.environment_builder()
+            .render_context_from(base)
+            .fulfill_from(base)
+            .build()
     }
 
     /// Build the base Render Environment used while resolving this pack's
@@ -313,9 +328,128 @@ impl ProjectPack {
         &self,
         bundles: impl IntoIterator<Item = PackageBundle>,
     ) -> Result<RenderEnvironment, ProjectPackError> {
-        let bundles = bundles.into_iter().collect::<Vec<_>>();
-        if let Some(bundle) = bundles.iter().find(|bundle| {
+        self.environment_builder().package_bundles(bundles).build()
+    }
+
+    fn font_containers<'a>(
+        &self,
+        external: impl IntoIterator<Item = &'a Vec<u8>>,
+    ) -> std::collections::HashMap<[u8; 16], Vec<u8>> {
+        let mut containers = std::collections::HashMap::new();
+        for data in &self.font_files {
+            containers.insert(
+                typst_pack::FontContainerIdentity::from_bytes(data).digest(),
+                data.clone(),
+            );
+        }
+        for data in external {
+            containers.insert(
+                typst_pack::FontContainerIdentity::from_bytes(data).digest(),
+                data.clone(),
+            );
+        }
+        containers
+    }
+}
+
+/// Builds a render environment whose document resources are exactly those
+/// declared by a [`ProjectPack`].
+#[derive(Clone, Debug)]
+pub struct ProjectPackEnvironmentBuilder<'a> {
+    pack: &'a ProjectPack,
+    package_bundles: Vec<PackageBundle>,
+    font_files: Vec<Vec<u8>>,
+    render_date: RenderDate,
+    inputs: Dict,
+}
+
+impl ProjectPackEnvironmentBuilder<'_> {
+    /// Copy only Render Context from an existing environment.
+    pub fn render_context_from(mut self, environment: &RenderEnvironment) -> Self {
+        self.render_date = environment.render_date();
+        self.inputs = environment.inputs().clone();
+        self
+    }
+
+    /// Use an explicit Render Date.
+    pub fn render_date(mut self, render_date: RenderDate) -> Self {
+        self.render_date = render_date;
+        self
+    }
+
+    /// Replace the Typst values visible through `sys.inputs`.
+    pub fn inputs(mut self, inputs: Dict) -> Self {
+        self.inputs = inputs;
+        self
+    }
+
+    /// Add or replace one Typst value visible through `sys.inputs`.
+    pub fn input(mut self, key: impl Into<String>, value: impl IntoValue) -> Self {
+        self.inputs.insert(key.into().into(), value.into_value());
+        self
+    }
+
+    /// Use an existing environment to fulfill declared external resources.
+    /// Undeclared packages and fonts are ignored.
+    pub fn fulfill_from(mut self, environment: &RenderEnvironment) -> Self {
+        for requirement in &self.pack.external_package_requirements {
+            if let Some(bundle) = environment.package_bundle(&requirement.spec) {
+                self = self.package_bundle(bundle.clone());
+            }
+        }
+        let required_fonts = self
+            .pack
+            .external_font_requirements
+            .iter()
+            .map(|requirement| requirement.container_digest)
+            .collect::<std::collections::HashSet<_>>();
+        self.font_files
+            .extend(environment.font_set().container_files_where(|data| {
+                required_fonts
+                    .contains(&typst_pack::FontContainerIdentity::from_bytes(data).digest())
+            }));
+        self
+    }
+
+    /// Supply an exact external Package Bundle.
+    pub fn package_bundle(mut self, bundle: PackageBundle) -> Self {
+        if let Some(existing) = self
+            .package_bundles
+            .iter_mut()
+            .find(|existing| existing.spec() == bundle.spec())
+        {
+            *existing = bundle;
+        } else {
+            self.package_bundles.push(bundle);
+        }
+        self
+    }
+
+    /// Supply exact external Package Bundles.
+    pub fn package_bundles(mut self, bundles: impl IntoIterator<Item = PackageBundle>) -> Self {
+        for bundle in bundles {
+            self = self.package_bundle(bundle);
+        }
+        self
+    }
+
+    /// Supply an exact external font container.
+    pub fn font_file(mut self, bytes: impl Into<Vec<u8>>) -> Self {
+        self.font_files.push(bytes.into());
+        self
+    }
+
+    /// Supply exact external font containers.
+    pub fn font_files(mut self, files: impl IntoIterator<Item = impl Into<Vec<u8>>>) -> Self {
+        self.font_files.extend(files.into_iter().map(Into::into));
+        self
+    }
+
+    /// Build the exact render environment.
+    pub fn build(self) -> Result<RenderEnvironment, ProjectPackError> {
+        if let Some(bundle) = self.package_bundles.iter().find(|bundle| {
             !self
+                .pack
                 .external_package_requirements
                 .iter()
                 .any(|requirement| requirement.spec == *bundle.spec())
@@ -324,16 +458,59 @@ impl ProjectPack {
                 spec: bundle.spec().clone(),
             });
         }
-        let environment = self
-            .preparation_environment()
-            .map_err(ProjectPackError::Environment)?
-            .to_builder()
-            .package_bundles(bundles)
-            .build()
-            .map_err(ProjectPackError::Environment)?;
-        self.verify_external_packages(&environment)?;
 
-        Ok(environment)
+        let supplied_packages =
+            PackageBundleSet::from_bundles(self.package_bundles).map_err(|duplicate| {
+                ProjectPackError::DuplicatePackage {
+                    spec: duplicate.spec,
+                }
+            })?;
+        verify_external_package_requirements(&self.pack.external_package_requirements, |spec| {
+            supplied_packages.get(spec)
+        })?;
+
+        let containers = self.pack.font_containers(&self.font_files);
+        for requirement in &self.pack.external_font_requirements {
+            let Some(data) = containers.get(&requirement.container_digest) else {
+                return Err(ProjectPackError::MissingExternalFont {
+                    container_digest: requirement.container_digest,
+                });
+            };
+            if data.len() as u64 != requirement.container_length {
+                return Err(ProjectPackError::MismatchedExternalFont {
+                    container_digest: requirement.container_digest,
+                });
+            }
+        }
+        let mut faces = Vec::new();
+        for face in &self.pack.font_catalog {
+            let data = containers.get(&face.container_digest).ok_or_else(|| {
+                ProjectPackError::MissingExternalFont {
+                    container_digest: face.container_digest,
+                }
+            })?;
+            if typst::text::FontInfo::new(data, face.index).is_none() {
+                return Err(ProjectPackError::MismatchedExternalFont {
+                    container_digest: face.container_digest,
+                });
+            }
+            faces.push((data.clone(), face.index));
+        }
+
+        RenderEnvironment::builder()
+            .package_bundles(
+                self.pack
+                    .package_bundles
+                    .bundles()
+                    .iter()
+                    .cloned()
+                    .chain(supplied_packages.bundles().iter().cloned()),
+            )
+            .font_set(FontSet::from_font_faces(faces))
+            .render_date(self.render_date)
+            .inputs(self.inputs)
+            .build()
+            .map_err(ProjectPackError::Environment)
     }
 }
 
@@ -343,7 +520,8 @@ pub struct ProjectPackBuilder {
     project: DocumentWorkspace,
     package_bundles: Vec<PackageBundle>,
     external_package_bundles: Vec<PackageBundle>,
-    font_files: Vec<Vec<u8>>,
+    font_faces: Vec<ProjectPackBuilderFontFace>,
+    invalid_font: bool,
     metadata: Option<ProjectPackMetadata>,
 }
 
@@ -372,7 +550,25 @@ impl ProjectPackBuilder {
 
     /// Embed a font file; collections contribute every face.
     pub fn font_file(mut self, bytes: impl Into<Vec<u8>>) -> Self {
-        self.font_files.push(bytes.into());
+        self = self.font_container(bytes.into(), true);
+        self
+    }
+
+    /// Record a complete font container as external without embedding its bytes.
+    pub fn external_font_file(mut self, bytes: impl Into<Vec<u8>>) -> Self {
+        self = self.font_container(bytes.into(), false);
+        self
+    }
+
+    /// Embed one face from a font container at this position in the Font Catalog.
+    pub fn font_face(mut self, bytes: impl Into<Vec<u8>>, index: u32) -> Self {
+        self = self.push_font_face(bytes.into(), index, true);
+        self
+    }
+
+    /// Record one external face at this position in the Font Catalog.
+    pub fn external_font_face(mut self, bytes: impl Into<Vec<u8>>, index: u32) -> Self {
+        self = self.push_font_face(bytes.into(), index, false);
         self
     }
 
@@ -408,10 +604,8 @@ impl ProjectPackBuilder {
             external_package_requirement(bundle)?;
         }
 
-        for data in &self.font_files {
-            if typst::text::FontInfo::new(data, 0).is_none() {
-                return Err(ProjectPackError::UnrecognizedFont);
-            }
+        if self.invalid_font {
+            return Err(ProjectPackError::UnrecognizedFont);
         }
 
         let pack = ProjectPack {
@@ -424,13 +618,46 @@ impl ProjectPackBuilder {
                 .collect(),
             external_package_requirements: Vec::new(),
             external_package_bundles: external_package_bundles.bundles().to_vec(),
-            font_files: self.font_files,
+            font_catalog: Vec::new(),
+            external_font_requirements: Vec::new(),
+            font_files: Vec::new(),
+            builder_font_faces: self.font_faces,
             metadata: self.metadata,
             source_bytes: None,
         };
         let bytes = pack.to_bytes()?;
 
         ProjectPack::from_bytes(bytes)
+    }
+
+    fn font_container(mut self, bytes: Vec<u8>, embedded: bool) -> Self {
+        let indices = (0..)
+            .take_while(|index| typst::text::FontInfo::new(&bytes, *index).is_some())
+            .collect::<Vec<_>>();
+        if indices.is_empty() {
+            self.invalid_font = true;
+        }
+        for index in indices {
+            self.font_faces.push(ProjectPackBuilderFontFace {
+                data: bytes.clone(),
+                index,
+                embedded,
+            });
+        }
+        self
+    }
+
+    fn push_font_face(mut self, bytes: Vec<u8>, index: u32, embedded: bool) -> Self {
+        if typst::text::FontInfo::new(&bytes, index).is_none() {
+            self.invalid_font = true;
+        } else {
+            self.font_faces.push(ProjectPackBuilderFontFace {
+                data: bytes,
+                index,
+                embedded,
+            });
+        }
+        self
     }
 }
 
@@ -465,6 +692,45 @@ impl ExternalPackageRequirement {
     }
 }
 
+/// An exact font container that must be fulfilled outside a Project Pack.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExternalFontRequirement {
+    container_digest: [u8; 16],
+    container_length: u64,
+    face_indices: Vec<u32>,
+}
+
+impl ExternalFontRequirement {
+    /// Return the canonical font-container digest.
+    pub fn container_digest(&self) -> [u8; 16] {
+        self.container_digest
+    }
+
+    /// Return the exact container byte length.
+    pub fn container_length(&self) -> u64 {
+        self.container_length
+    }
+
+    /// Return the required face indices within the container.
+    pub fn face_indices(&self) -> &[u32] {
+        &self.face_indices
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ProjectPackFontFace {
+    container_digest: [u8; 16],
+    index: u32,
+    embedded: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ProjectPackBuilderFontFace {
+    data: Vec<u8>,
+    index: u32,
+    embedded: bool,
+}
+
 fn external_package_requirement(
     bundle: &PackageBundle,
 ) -> Result<ExternalPackageRequirement, ProjectPackError> {
@@ -492,6 +758,24 @@ fn external_package_requirement(
         file_count: requirement.file_count(),
         byte_length: requirement.byte_length(),
     })
+}
+
+fn verify_external_package_requirements<'a>(
+    requirements: &[ExternalPackageRequirement],
+    mut get: impl FnMut(&PackageSpec) -> Option<&'a PackageBundle>,
+) -> Result<(), ProjectPackError> {
+    for expected in requirements {
+        let bundle =
+            get(&expected.spec).ok_or_else(|| ProjectPackError::MissingExternalPackage {
+                spec: expected.spec.clone(),
+            })?;
+        if external_package_requirement(bundle)? != *expected {
+            return Err(ProjectPackError::MismatchedExternalPackage {
+                spec: expected.spec.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Optional descriptive metadata carried by a Project Pack.
@@ -563,12 +847,6 @@ pub enum ProjectPackError {
     /// An embedded font file could not be parsed as a font.
     UnrecognizedFont,
 
-    /// The pack requires external font containers, which this adapter does not support.
-    UnsupportedExternalFonts,
-
-    /// The pack's embedded Font Catalog cannot be represented by this adapter's Font Set.
-    UnsupportedFontCatalog,
-
     /// An external Package Bundle contains no files and cannot establish a tree identity.
     EmptyExternalPackage { spec: PackageSpec },
 
@@ -581,8 +859,11 @@ pub enum ProjectPackError {
     /// A Package Bundle was supplied that the pack does not require.
     UnexpectedExternalPackage { spec: PackageSpec },
 
-    /// External package requirements must be fulfilled before rendering.
-    UnresolvedExternalPackages { packages: Vec<PackageSpec> },
+    /// An exact external font container is unavailable.
+    MissingExternalFont { container_digest: [u8; 16] },
+
+    /// A supplied font container does not match the pack's exact requirement.
+    MismatchedExternalFont { container_digest: [u8; 16] },
 
     /// The pack's Render Environment could not be built.
     Environment(RenderEnvironmentError),
@@ -691,7 +972,7 @@ mod tests {
         let read = ProjectPack::from_bytes(&bytes).expect("pack should parse back");
 
         assert_eq!(read.font_files(), std::slice::from_ref(&font));
-        assert_eq!(read.font_set(), FontSet::from_font_files([font]));
+        assert_eq!(read.font_set().container_files_where(|_| true), [font]);
     }
 
     #[test]
@@ -723,7 +1004,7 @@ mod tests {
         .expect("matching bundle should build");
         assert!(matches!(
             pack.render_environment(),
-            Err(ProjectPackError::UnresolvedExternalPackages { .. })
+            Err(ProjectPackError::MissingExternalPackage { .. })
         ));
 
         let matching_environment = pack
@@ -745,14 +1026,28 @@ mod tests {
             .clone()])
             .expect("verified render environment should build");
 
-        let unexpected = PackageBundle::builder(
-            "@demo/unexpected:0.1.0"
-                .parse()
-                .expect("unexpected spec should parse"),
-        )
-        .file("lib.typ", b"".to_vec())
-        .build()
-        .expect("unexpected bundle should build");
+        let unexpected_spec: PackageSpec = "@demo/unexpected:0.1.0"
+            .parse()
+            .expect("unexpected spec should parse");
+        let unexpected = PackageBundle::builder(unexpected_spec.clone())
+            .file("lib.typ", b"".to_vec())
+            .build()
+            .expect("unexpected bundle should build");
+        let render_date = RenderDate::from_ymd(2030, 2, 3).expect("date should be valid");
+        let base = matching_environment
+            .to_builder()
+            .package_bundle(unexpected.clone())
+            .render_date(render_date)
+            .input("tenant", "demo")
+            .build()
+            .expect("base environment should build");
+        let rendered = pack
+            .render_environment_from(&base)
+            .expect("base should fulfill the pack");
+        assert_eq!(rendered.render_date(), render_date);
+        assert_eq!(rendered.inputs(), base.inputs());
+        assert!(rendered.package_bundle(&unexpected_spec).is_none());
+
         assert!(matches!(
             pack.render_environment_with_external_packages([unexpected]),
             Err(ProjectPackError::UnexpectedExternalPackage { .. })
@@ -792,25 +1087,56 @@ mod tests {
     }
 
     #[test]
-    fn project_pack_rejects_external_font_requirements() {
-        let font = typst_assets::fonts()
+    fn project_pack_fulfills_external_fonts_from_a_base_environment() {
+        let external_font = typst_assets::fonts()
             .next()
             .expect("bundled fonts should not be empty")
             .to_vec();
-        let pack = typst_pack::Pack::builder("main.typ")
-            .file("main.typ", b"Hello".to_vec())
-            .expect("file should be valid")
-            .external_font(font, 0)
-            .expect("external font should be valid")
+        let embedded_font = typst_assets::fonts()
+            .nth(1)
+            .expect("bundled fonts should contain a second font")
+            .to_vec();
+        let ambient_font = typst_assets::fonts()
+            .nth(2)
+            .expect("bundled fonts should contain a third font")
+            .to_vec();
+        let pack = ProjectPack::builder(DocumentWorkspace::from_source("Hello"))
+            .external_font_face(external_font.clone(), 0)
+            .font_face(embedded_font.clone(), 0)
             .build()
-            .expect("raw pack should build")
-            .to_bytes()
-            .expect("raw pack should serialize");
+            .expect("pack with an external font should build");
 
+        assert_eq!(pack.external_font_requirements().len(), 1);
+        let raw = typst_pack::Pack::from_bytes(pack.to_bytes().expect("pack should serialize"))
+            .expect("raw pack should parse");
+        assert!(!raw.font_catalog()[0].is_embedded());
+        assert!(raw.font_catalog()[1].is_embedded());
+        assert!(matches!(
+            pack.render_environment(),
+            Err(ProjectPackError::MissingExternalFont { .. })
+        ));
+
+        let base = RenderEnvironment::builder()
+            .font_set(FontSet::from_font_files([
+                ambient_font,
+                external_font.clone(),
+            ]))
+            .build()
+            .expect("base environment should build");
+        let environment = pack
+            .render_environment_from(&base)
+            .expect("base font should fulfill the pack");
+
+        let store = environment.font_set().font_store();
         assert_eq!(
-            ProjectPack::from_bytes(pack),
-            Err(ProjectPackError::UnsupportedExternalFonts)
+            store.font(0).expect("external face").data().as_slice(),
+            external_font
         );
+        assert_eq!(
+            store.font(1).expect("embedded face").data().as_slice(),
+            embedded_font
+        );
+        assert!(store.font(2).is_none());
     }
 
     #[test]
