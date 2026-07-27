@@ -1,12 +1,12 @@
 [package]
 name = "typst-embed"
-version.workspace = true
+version = { workspace = true }
 description = "Embed Typst in an application: explicit projects, worlds, and rendering across native and wasm targets"
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-repository.workspace = true
-homepage.workspace = true
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
 keywords = ["typst", "typesetting", "rendering", "pdf", "wasm"]
 categories = ["compilers", "rendering", "wasm"]
 
@@ -38,21 +38,21 @@ vendor = ["download", "typst-package-source/vendor"]
 lazy-packages = []
 
 [dependencies]
-typst-package-source.workspace = true
+typst-package-source = { workspace = true }
 
 serde = { workspace = true, optional = true }
-thiserror.workspace = true
-typst.workspace = true
+thiserror = { workspace = true }
+typst = { workspace = true }
 typst-html = { workspace = true, optional = true }
-typst-kit.workspace = true
+typst-kit = { workspace = true }
 typst-layout = { workspace = true, optional = true }
 typst-pack = { version = "0.4.0", default-features = false, optional = true }
 typst-pdf = { workspace = true, optional = true }
 typst-render = { workspace = true, optional = true }
 
 [dev-dependencies]
-pollster.workspace = true
-tempfile.workspace = true
+pollster = { workspace = true }
+tempfile = { workspace = true }
 typst-assets = { workspace = true, features = ["fonts"] }
 
 [package.metadata.docs.rs]

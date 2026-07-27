@@ -1,12 +1,12 @@
 [package]
 name = "typst-package-source"
-version.workspace = true
+version = { workspace = true }
 description = "Explicit, policy-gated Typst package resolution: the Package Source seam, in-memory bundles, registries, and archives"
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-repository.workspace = true
-homepage.workspace = true
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
 keywords = ["typst", "typesetting", "packages", "registry", "wasm"]
 categories = ["compilers", "wasm"]
 
@@ -30,12 +30,12 @@ serde = { workspace = true, optional = true }
 tar = { version = "0.4", optional = true, default-features = false }
 typst-kit = { workspace = true, optional = true }
 typst-library = { workspace = true, optional = true }
-thiserror.workspace = true
-typst-syntax.workspace = true
+thiserror = { workspace = true }
+typst-syntax = { workspace = true }
 
 [dev-dependencies]
-pollster.workspace = true
-tempfile.workspace = true
+pollster = { workspace = true }
+tempfile = { workspace = true }
 
 [package.metadata.docs.rs]
 # The API is feature-gated throughout; document all of it, and label each item
