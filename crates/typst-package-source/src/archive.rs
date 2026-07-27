@@ -46,16 +46,29 @@ impl PackageBundle {
 }
 
 /// A package archive parsing failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackageArchiveError {
     /// The bytes could not be read as a gzip-compressed tar archive.
-    Archive { message: String },
+    #[error("the bytes could not be read as a gzip-compressed tar archive: {message}")]
+    Archive {
+        /// What went wrong while reading the archive.
+        message: String,
+    },
 
     /// An archive entry path is not root-relative inside the package.
-    InvalidPath { path: String },
+    #[error("archive entry path `{path}` is not root-relative inside the package")]
+    InvalidPath {
+        /// The rejected archive entry path.
+        path: String,
+    },
 
     /// More than one archive entry has the same package-internal path.
-    DuplicatePath { path: String },
+    #[error("more than one archive entry has the path `{path}`")]
+    DuplicatePath {
+        /// The path that appeared more than once.
+        path: String,
+    },
 }
 
 impl PackageArchiveError {

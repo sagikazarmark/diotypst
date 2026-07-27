@@ -109,13 +109,28 @@ impl Default for FileImportOptions {
 }
 
 /// A Project Import failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum FileImportError {
     /// A file could not be read from the file input.
-    Read { name: String, message: String },
+    #[error("`{name}` could not be read from the file input: {message}")]
+    Read {
+        /// The name of the file that could not be read.
+        name: String,
+        /// What went wrong while reading.
+        message: String,
+    },
 
     /// A file exceeds the configured size limit.
-    TooLarge { name: String, size: u64, limit: u64 },
+    #[error("`{name}` is {size} bytes, over the {limit}-byte import limit")]
+    TooLarge {
+        /// The name of the oversized file.
+        name: String,
+        /// The file's size in bytes.
+        size: u64,
+        /// The configured limit in bytes.
+        limit: u64,
+    },
 }
 
 /// Read Dioxus file input files into classified imported files.
@@ -206,7 +221,7 @@ pub fn is_font_file(path: &str, content_type: Option<&str>, bytes: &[u8]) -> boo
 /// Split imported font files out for Font Set construction.
 ///
 /// Returns the remaining Project Files and the font file bytes, typically passed to
-/// [`FontSet::with_font_files`](typst_project::FontSet::with_font_files).
+/// [`FontSet::with_font_files`](typst_embed::FontSet::with_font_files).
 pub fn partition_imported_fonts(
     files: Vec<ImportedProjectFile>,
 ) -> (Vec<ImportedProjectFile>, Vec<Vec<u8>>) {

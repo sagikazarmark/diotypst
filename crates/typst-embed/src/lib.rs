@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
 mod artifact;
@@ -8,8 +9,8 @@ mod observe;
 #[cfg(feature = "pack")]
 mod pack;
 mod prepare;
+mod project;
 mod render;
-mod workspace;
 mod world;
 
 pub use artifact::{
@@ -30,6 +31,7 @@ pub use prepare::{
     PackagePreparation, PrepareEvent, PreparePackagesOptions, prepare_packages,
     prepare_packages_with_progress,
 };
+pub use project::{Project, ProjectBuilder, ProjectFile, ProjectValidationError};
 pub use render::{
     PackageDependencyObservation, PackageDependencyTarget, RenderError,
     observe_package_dependencies, observe_package_dependencies_world, render_artifact,
@@ -41,10 +43,7 @@ pub use render::{render_html, render_html_world};
 pub use render::{render_page_images, render_page_images_world};
 #[cfg(feature = "pdf")]
 pub use render::{render_pdf, render_pdf_world};
-pub use workspace::{
-    DocumentWorkspace, DocumentWorkspaceBuilder, WorkspaceFile, WorkspaceValidationError,
-};
-pub use world::{SandboxedWorld, SandboxedWorldBuilder, WorldOverlay};
+pub use world::{ProjectWorld, ProjectWorldBuilder, WorldOverlay};
 
 // Package acquisition lives in typst-package-source (a typst-syntax-tier crate, so
 // package tooling compiles without this crate's compiler and render backends); the

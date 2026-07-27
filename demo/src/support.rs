@@ -1,10 +1,9 @@
 //! Support helpers for the Dioxus Typst demo UI (`web`/`server` targets).
 
 use diotypst::{
-    DocumentWorkspace, DownloadError, FileImportError, ImportedProjectFile, PackageBundle,
-    PackagePreparationStatus, ProjectPack, ProjectPackMetadata, RenderDiagnostic, RenderError,
-    RenderSourceRange, RenderStatus, VirtualPath, WorkspaceValidationError, WorldPreparationPhase,
-    WorldPreparationState,
+    ImportedProjectFile, PackageBundle, PackagePreparationStatus, Project, ProjectPack,
+    ProjectPackMetadata, ProjectValidationError, RenderDiagnostic, RenderError, RenderSourceRange,
+    RenderStatus, VirtualPath, WorldPreparationPhase, WorldPreparationState,
 };
 use std::collections::HashSet;
 
@@ -109,7 +108,7 @@ pub fn embedded_demo_package() -> PackageBundle {
 /// The sample Project Pack for the `.typk` example: the embedded-package
 /// template with its `@demo/demo-badge` Package Bundle vendored inside.
 pub fn demo_project_pack() -> ProjectPack {
-    ProjectPack::builder(DocumentWorkspace::from_source(EMBEDDED_PACKAGE_TEMPLATE))
+    ProjectPack::builder(Project::from_source(EMBEDDED_PACKAGE_TEMPLATE))
         .package_bundle(embedded_demo_package())
         .metadata(
             ProjectPackMetadata::new()
@@ -149,20 +148,11 @@ pub fn pack_summary(pack: &ProjectPack) -> String {
     format!("Loaded \"{name}\": {}.", parts.join(", "))
 }
 
-pub fn file_import_error_summary(error: &FileImportError) -> String {
-    match error {
-        FileImportError::Read { name, message } => format!("Could not read {name}: {message}"),
-        FileImportError::TooLarge { name, size, limit } => {
-            format!("{name} is {size} bytes, over the {limit} byte import limit.")
-        }
-    }
-}
-
-pub fn build_imported_workspace<'a>(
+pub fn build_imported_project<'a>(
     root_path: impl Into<String>,
     files: impl IntoIterator<Item = &'a ImportedProjectFile>,
-) -> Result<DocumentWorkspace, WorkspaceValidationError> {
-    let mut builder = DocumentWorkspace::builder(root_path);
+) -> Result<Project, ProjectValidationError> {
+    let mut builder = Project::builder(root_path);
 
     for file in files {
         builder = builder.file(file.path().to_owned(), file.bytes().to_vec());
@@ -257,40 +247,23 @@ pub fn render_status_label(status: RenderStatus) -> &'static str {
     }
 }
 
-pub fn workspace_validation_summary(error: &WorkspaceValidationError) -> String {
-    match error {
-        WorkspaceValidationError::InvalidPath { path } => format!(
-            "Workspace path {path} is invalid. Use root-relative paths inside the imported workspace."
-        ),
-        WorkspaceValidationError::DuplicatePath { path } => {
-            format!("Workspace path {path} appears more than once after normalization.")
-        }
-        WorkspaceValidationError::MissingRoot { root } => {
-            format!("Root entrypoint {root} was not found in the imported workspace.")
-        }
-    }
-}
-
+/// Present a render failure, expanding diagnostics to one located line each.
+///
+/// Every other variant already carries a usable message, so this only adds what
+/// `Display` cannot: the Project Path and source range of each diagnostic.
 pub fn render_error_summary(error: &RenderError) -> String {
     match error {
-        RenderError::Workspace(error) => workspace_validation_summary(error),
         RenderError::Diagnostics(diagnostics) => diagnostics
             .iter()
             .map(render_diagnostic_summary)
             .collect::<Vec<_>>()
             .join("\n"),
-        RenderError::ImageEncoding(message) => format!("Image encoding failed: {message}"),
-        RenderError::UnsupportedFormat { format } => {
-            format!("This build has no Render Capability for {format:?}.")
-        }
-        RenderError::UnsupportedTarget { target } => {
-            format!("This build has no Render Capability for the {target:?} preflight target.")
-        }
+        error => error.to_string(),
     }
 }
 
 fn render_diagnostic_summary(diagnostic: &RenderDiagnostic) -> String {
-    let location = match (diagnostic.workspace_path(), diagnostic.source_range()) {
+    let location = match (diagnostic.project_path(), diagnostic.source_range()) {
         (Some(path), Some(range)) => Some(format!(
             "{}:{}",
             path.get_without_slash(),
@@ -322,21 +295,12 @@ fn render_source_range_label(range: RenderSourceRange) -> String {
     }
 }
 
-pub fn download_error_summary(error: &DownloadError) -> &'static str {
-    match error {
-        DownloadError::Unavailable => "No current or stale artifact is available to download.",
-        DownloadError::UnsupportedArtifact => {
-            "HTML artifacts are preview-only and cannot be downloaded."
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use diotypst::{
-        render_html, use_typst_render, DocumentWorkspace, HeadlessRender, RenderArtifact,
-        RenderEnvironment, RenderFormat, WorkspaceValidationError,
+        HeadlessRender, Project, ProjectValidationError, RenderArtifact, RenderEnvironment,
+        RenderFormat, render_html, use_typst_render,
     };
     use dioxus::prelude::*;
     use std::cell::RefCell;
@@ -375,11 +339,11 @@ mod tests {
 
     fn render_headless_html(
         renderer: &mut HeadlessRender,
-        workspace: &DocumentWorkspace,
+        project: &Project,
         environment: &RenderEnvironment,
     ) {
         let world = environment
-            .world_builder(workspace.clone())
+            .world_builder(project.clone())
             .html()
             .build()
             .expect("Project World should be valid");
@@ -392,10 +356,10 @@ mod tests {
         let environment = RenderEnvironment::builder()
             .build()
             .expect("render environment should be valid");
-        let current_workspace = DocumentWorkspace::from_source(SAMPLE_TYPST);
-        let broken_workspace = DocumentWorkspace::from_source("#let broken =");
+        let current_project = Project::from_source(SAMPLE_TYPST);
+        let broken_project = Project::from_source("#let broken =");
 
-        render_headless_html(&mut renderer.write(), &current_workspace, &environment);
+        render_headless_html(&mut renderer.write(), &current_project, &environment);
 
         {
             let renderer = renderer.read();
@@ -408,7 +372,7 @@ mod tests {
             assert!(state.error().is_none());
         }
 
-        render_headless_html(&mut renderer.write(), &broken_workspace, &environment);
+        render_headless_html(&mut renderer.write(), &broken_project, &environment);
 
         {
             let renderer = renderer.read();
@@ -422,11 +386,7 @@ mod tests {
         }
 
         let (_failed_dom, mut failed_renderer) = render_signal_from_hook();
-        render_headless_html(
-            &mut failed_renderer.write(),
-            &broken_workspace,
-            &environment,
-        );
+        render_headless_html(&mut failed_renderer.write(), &broken_project, &environment);
 
         let failed_renderer = failed_renderer.read();
         let failed_state = failed_renderer.state();
@@ -440,10 +400,10 @@ mod tests {
         let environment = RenderEnvironment::builder()
             .build()
             .expect("render environment should be valid");
-        let workspace = DocumentWorkspace::from_source(SAMPLE_TYPST);
+        let project = Project::from_source(SAMPLE_TYPST);
         let mut renderer = HeadlessRender::new();
 
-        render_headless_html(&mut renderer, &workspace, &environment);
+        render_headless_html(&mut renderer, &project, &environment);
 
         let state = renderer.state();
         assert_eq!(state.status(), RenderStatus::Current);
@@ -458,12 +418,12 @@ mod tests {
         let environment = RenderEnvironment::builder()
             .build()
             .expect("render environment should be valid");
-        let current_workspace = DocumentWorkspace::from_source(SAMPLE_TYPST);
-        let broken_workspace = DocumentWorkspace::from_source("#let broken =");
+        let current_project = Project::from_source(SAMPLE_TYPST);
+        let broken_project = Project::from_source("#let broken =");
         let mut renderer = HeadlessRender::new();
 
-        render_headless_html(&mut renderer, &current_workspace, &environment);
-        render_headless_html(&mut renderer, &broken_workspace, &environment);
+        render_headless_html(&mut renderer, &current_project, &environment);
+        render_headless_html(&mut renderer, &broken_project, &environment);
 
         let state = renderer.state();
         assert_eq!(state.status(), RenderStatus::Stale);
@@ -482,8 +442,8 @@ mod tests {
         let environment = RenderEnvironment::builder()
             .build()
             .expect("render environment should be valid");
-        let workspace = DocumentWorkspace::from_source("= Title\n\n#let broken =");
-        let error = render_html(&workspace, &environment)
+        let project = Project::from_source("= Title\n\n#let broken =");
+        let error = render_html(&project, &environment)
             .expect_err("invalid Typst source should fail with diagnostics");
 
         let summary = render_error_summary(&error);
@@ -497,10 +457,10 @@ mod tests {
         let environment = RenderEnvironment::builder()
             .build()
             .expect("render environment should be valid");
-        let workspace = DocumentWorkspace::from_source(SAMPLE_TYPST);
+        let project = Project::from_source(SAMPLE_TYPST);
         let mut renderer = HeadlessRender::new();
 
-        render_headless_html(&mut renderer, &workspace, &environment);
+        render_headless_html(&mut renderer, &project, &environment);
 
         let Some(RenderArtifact::Html(html)) = renderer.state().artifact() else {
             panic!("expected HTML artifact");
@@ -515,19 +475,7 @@ mod tests {
     }
 
     #[test]
-    fn demo_download_errors_are_user_facing() {
-        assert_eq!(
-            download_error_summary(&diotypst::DownloadError::Unavailable),
-            "No current or stale artifact is available to download."
-        );
-        assert_eq!(
-            download_error_summary(&diotypst::DownloadError::UnsupportedArtifact),
-            "HTML artifacts are preview-only and cannot be downloaded."
-        );
-    }
-
-    #[test]
-    fn imported_files_build_a_renderable_document_workspace() {
+    fn imported_files_build_a_renderable_document_project() {
         let files = [
             ImportedProjectFile::new(
                 "main.typ",
@@ -536,7 +484,7 @@ mod tests {
             ),
             ImportedProjectFile::new(
                 "chapters/./intro.typ",
-                "Included from the imported workspace.",
+                "Included from the imported project.",
                 Some("text/typst".to_owned()),
             ),
         ];
@@ -544,19 +492,20 @@ mod tests {
             .build()
             .expect("render environment should be valid");
 
-        let workspace = build_imported_workspace("main.typ", &files)
-            .expect("imported workspace should be valid");
-        let html = render_html(&workspace, &environment)
-            .expect("imported workspace should render through the sandbox");
+        let project =
+            build_imported_project("main.typ", &files).expect("imported project should be valid");
+        let html = render_html(&project, &environment)
+            .expect("imported project should render through the project world");
 
-        assert_eq!(workspace.root_path().get_without_slash(), "main.typ");
+        assert_eq!(project.root_path().get_without_slash(), "main.typ");
         assert_eq!(
-            workspace.file_bytes("chapters/intro.typ"),
-            Some("Included from the imported workspace.".as_bytes())
+            project.file_bytes("chapters/intro.typ"),
+            Some("Included from the imported project.".as_bytes())
         );
-        assert!(html
-            .as_str()
-            .contains("<p>Included from the imported workspace.</p>"));
+        assert!(
+            html.as_str()
+                .contains("<p>Included from the imported project.</p>")
+        );
     }
 
     #[test]
@@ -587,14 +536,15 @@ mod tests {
             .package_bundle(embedded_demo_package())
             .build()
             .expect("environment with the embedded package should build");
-        let workspace = DocumentWorkspace::from_source(EMBEDDED_PACKAGE_TEMPLATE);
+        let project = Project::from_source(EMBEDDED_PACKAGE_TEMPLATE);
 
         let html =
-            render_html(&workspace, &environment).expect("embedded package template should render");
+            render_html(&project, &environment).expect("embedded package template should render");
 
-        assert!(html
-            .as_str()
-            .contains("Rendered from an embedded Package Bundle"));
+        assert!(
+            html.as_str()
+                .contains("Rendered from an embedded Package Bundle")
+        );
     }
 
     #[test]
@@ -610,9 +560,10 @@ mod tests {
         let html =
             render_html(pack.project(), &environment).expect("loaded pack should render offline");
 
-        assert!(html
-            .as_str()
-            .contains("Rendered from an embedded Package Bundle"));
+        assert!(
+            html.as_str()
+                .contains("Rendered from an embedded Package Bundle")
+        );
         assert_eq!(
             pack_summary(&pack),
             "Loaded \"diotypst demo badge\": 1 project files, 1 vendored packages."
@@ -625,9 +576,9 @@ mod tests {
             .input("data", SAMPLE_JSON_DATA)
             .build()
             .expect("environment with a JSON input should build");
-        let workspace = DocumentWorkspace::from_source(JSON_DATA_TEMPLATE);
+        let project = Project::from_source(JSON_DATA_TEMPLATE);
 
-        let html = render_html(&workspace, &environment).expect("JSON data template should render");
+        let html = render_html(&project, &environment).expect("JSON data template should render");
 
         assert!(html.as_str().contains("Sprint plan"));
         assert!(html.as_str().contains("Implementation"));
@@ -652,28 +603,6 @@ mod tests {
         assert_eq!(
             preparation_summary(&state),
             "packages: preparing - @preview/cetz:0.4.2 (downloading)"
-        );
-    }
-
-    #[test]
-    fn workspace_validation_errors_are_user_facing() {
-        assert_eq!(
-            workspace_validation_summary(&WorkspaceValidationError::InvalidPath {
-                path: "../secret.typ".to_owned(),
-            }),
-            "Workspace path ../secret.typ is invalid. Use root-relative paths inside the imported workspace."
-        );
-        assert_eq!(
-            workspace_validation_summary(&WorkspaceValidationError::DuplicatePath {
-                path: "chapters/intro.typ".to_owned(),
-            }),
-            "Workspace path chapters/intro.typ appears more than once after normalization."
-        );
-        assert_eq!(
-            workspace_validation_summary(&WorkspaceValidationError::MissingRoot {
-                root: "main.typ".to_owned(),
-            }),
-            "Root entrypoint main.typ was not found in the imported workspace."
         );
     }
 }

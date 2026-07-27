@@ -1,6 +1,6 @@
-use crate::{SAMPLE_TYPST, download_error_summary, render_error_summary};
+use crate::{SAMPLE_TYPST, render_error_summary};
 use diotypst::{
-    DocumentWorkspace, DownloadFormat, PageImageOptions, RenderDownloadError, render_download,
+    DownloadFormat, PageImageOptions, Project, RenderDownloadError, render_download,
     trigger_browser_download, use_typst_defaults,
 };
 use dioxus::prelude::*;
@@ -19,7 +19,7 @@ pub fn PageImagesExample() -> Element {
         button {
             class: "btn btn-primary",
             onclick: move |_| {
-                let project = DocumentWorkspace::from_source(format!(
+                let project = Project::from_source(format!(
                     "{SAMPLE_TYPST}\n#pagebreak()\nRendered on a second page."
                 ));
                 let format = DownloadFormat::PageImageArchive {
@@ -29,14 +29,12 @@ pub fn PageImagesExample() -> Element {
                 match render_download(&project, &environment, format, "pages.zip") {
                     Ok(file) => match trigger_browser_download(&file) {
                         Ok(()) => status.set(format!("Downloaded {}.", file.filename())),
-                        Err(error) => status.set(format!("Browser download failed: {error:?}")),
+                        Err(error) => status.set(format!("Browser download failed: {error}")),
                     },
                     Err(RenderDownloadError::Render(error)) => {
                         status.set(render_error_summary(&error))
                     }
-                    Err(RenderDownloadError::Download(error)) => {
-                        status.set(download_error_summary(&error).to_owned())
-                    }
+                    Err(error) => status.set(error.to_string()),
                 }
             },
             "Render & download page images ZIP"

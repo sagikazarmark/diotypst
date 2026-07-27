@@ -21,21 +21,24 @@ pub trait PackageArchiveFetcher: Send + Sync + 'static {
 
 /// A package archive fetch failure.
 #[cfg(feature = "server")]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackageArchiveFetchError {
     /// The upstream registry does not serve this archive.
+    #[error("the upstream registry does not serve this archive")]
     NotFound,
 
     /// The upstream fetch failed, such as a network error.
+    #[error("the upstream archive fetch failed: {0}")]
     Failed(String),
 }
 
-/// A [`PackageArchiveFetcher`] backed by a typst-kit [`Downloader`](typst_project::Downloader).
+/// A [`PackageArchiveFetcher`] backed by a typst-kit [`Downloader`](typst_embed::Downloader).
 #[cfg(all(feature = "server", feature = "download"))]
 pub struct DownloaderArchiveFetcher<D>(pub D);
 
 #[cfg(all(feature = "server", feature = "download"))]
-impl<D: typst_project::Downloader> PackageArchiveFetcher for DownloaderArchiveFetcher<D> {
+impl<D: typst_embed::Downloader> PackageArchiveFetcher for DownloaderArchiveFetcher<D> {
     fn fetch(&self, spec: &PackageSpec, url: &str) -> Result<Vec<u8>, PackageArchiveFetchError> {
         self.0
             .download(spec, url)
@@ -68,7 +71,7 @@ impl PackageProxyConfig {
     pub fn new(policy: PackagePolicy) -> Self {
         Self {
             policy,
-            upstream_base_url: typst_project::UNIVERSE_REGISTRY_URL.to_owned(),
+            upstream_base_url: typst_embed::UNIVERSE_REGISTRY_URL.to_owned(),
             cache_dir: None,
         }
     }
@@ -128,7 +131,7 @@ fn proxy_error_response(error: PackageProxyError) -> (axum::http::StatusCode, St
     let status = axum::http::StatusCode::from_u16(error.http_status())
         .expect("proxy status codes are valid");
 
-    (status, format!("{error:?}"))
+    (status, error.to_string())
 }
 
 #[cfg(feature = "server")]
@@ -194,7 +197,7 @@ mod router_tests {
     use super::*;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
-    use typst_project::PackagePattern;
+    use typst_embed::PackagePattern;
 
     /// A fetcher serving one fixture archive, recording calls.
     struct StubFetcher {

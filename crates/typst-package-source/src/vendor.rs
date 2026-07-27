@@ -59,16 +59,33 @@ pub fn vendor_package_archives(
 }
 
 /// A package vendoring failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum VendorError {
     /// The registry does not serve archives for the spec's namespace.
-    UnsupportedNamespace { spec: PackageSpec },
+    #[error("the registry does not serve archives for the namespace of {spec}")]
+    UnsupportedNamespace {
+        /// The exact package spec whose namespace is not served.
+        spec: PackageSpec,
+    },
 
     /// The archive could not be downloaded from the registry.
-    Download { spec: PackageSpec, message: String },
+    #[error("the archive for {spec} could not be downloaded: {message}")]
+    Download {
+        /// The exact package spec that could not be downloaded.
+        spec: PackageSpec,
+        /// What went wrong while downloading.
+        message: String,
+    },
 
     /// The archive could not be written to the vendor directory.
-    Io { path: String, message: String },
+    #[error("the archive could not be written to `{path}`: {message}")]
+    Io {
+        /// The vendor-directory path that could not be written.
+        path: String,
+        /// What went wrong while writing.
+        message: String,
+    },
 }
 
 #[cfg(test)]

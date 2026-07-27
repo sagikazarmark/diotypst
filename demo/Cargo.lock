@@ -1016,9 +1016,10 @@ dependencies = [
  "dioxus",
  "js-sys",
  "serde",
+ "thiserror 2.0.18",
  "typst",
+ "typst-embed",
  "typst-package-source",
- "typst-project",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -5389,6 +5390,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "typst-embed"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+ "typst",
+ "typst-html",
+ "typst-kit",
+ "typst-layout",
+ "typst-pack",
+ "typst-package-source",
+ "typst-pdf",
+ "typst-render",
+]
+
+[[package]]
 name = "typst-eval"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5603,6 +5620,7 @@ dependencies = [
  "flate2",
  "serde",
  "tar",
+ "thiserror 2.0.18",
  "typst-kit",
  "typst-library",
  "typst-syntax",
@@ -5635,21 +5653,6 @@ dependencies = [
  "typst-syntax",
  "typst-timing",
  "typst-utils",
-]
-
-[[package]]
-name = "typst-project"
-version = "0.1.0"
-dependencies = [
- "serde",
- "typst",
- "typst-html",
- "typst-kit",
- "typst-layout",
- "typst-pack",
- "typst-package-source",
- "typst-pdf",
- "typst-render",
 ]
 
 [[package]]

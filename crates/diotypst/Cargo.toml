@@ -11,37 +11,42 @@ keywords = ["typst", "dioxus", "typesetting", "pdf", "wasm"]
 categories = ["gui", "wasm", "web-programming"]
 
 [features]
-default = []
-# Render Capabilities, forwarded to typst-project; see its feature docs.
-pdf = ["typst-project/pdf"]
-page-images = ["typst-project/page-images"]
-html = ["typst-project/html"]
-bundled-fonts = ["typst-project/bundled-fonts"]
+# The Dioxus integration is the point of this crate, so it is on by default.
+# Server-only builds of a fullstack app opt out with `default-features = false`.
+default = ["dioxus"]
+# Render Capabilities, forwarded to typst-embed; see its feature docs.
+pdf = ["typst-embed/pdf"]
+page-images = ["typst-embed/page-images"]
+html = ["typst-embed/html"]
+bundled-fonts = ["typst-embed/bundled-fonts"]
 dioxus = ["dep:dioxus", "dioxus/html", "dioxus/macro"]
-serde = ["dep:serde", "typst-project/serde"]
+serde = ["dep:serde", "typst-embed/serde"]
 server = ["dep:axum", "serde"]
 # Parse verbatim Typst Universe `.tar.gz` archives into Package Bundles (wasm-safe).
-archive = ["typst-project/archive"]
+archive = ["typst-embed/archive"]
 # Serve unpacked packages from Typst CLI-style package directories (native).
-fs-packages = ["typst-project/fs-packages"]
+fs-packages = ["typst-embed/fs-packages"]
 # Download packages from a Typst Universe-style registry (native).
-download = ["archive", "fs-packages", "typst-project/download"]
+download = ["archive", "fs-packages", "typst-embed/download"]
 # Built-in native HTTPS downloader from typst-kit.
-system-downloader = ["download", "typst-project/system-downloader"]
+system-downloader = ["download", "typst-embed/system-downloader"]
 # Read and write portable `.typk` Project Pack archives (wasm-safe).
-pack = ["typst-project/pack"]
+pack = ["typst-embed/pack"]
 # Pre-download verbatim package archives for embedding (native).
-vendor = ["download", "typst-project/vendor"]
-# Opt-in synchronous mid-render package resolution; see ADR 0008.
-lazy-packages = ["typst-project/lazy-packages"]
+vendor = ["download", "typst-embed/vendor"]
+# Opt-in synchronous mid-render package resolution: the explicit exception to the
+# closed-world default, where a native Project World may reach a Package Source
+# during Typst world lookup. Off by default.
+lazy-packages = ["typst-embed/lazy-packages"]
 
 [dependencies]
-typst-project.workspace = true
+typst-embed.workspace = true
 typst-package-source.workspace = true
 
 axum = { version = "0.8", default-features = false, features = ["json"], optional = true }
 dioxus = { version = "0.7", default-features = false, features = ["hooks", "signals"], optional = true }
 serde = { workspace = true, optional = true }
+thiserror.workspace = true
 typst.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -70,3 +75,9 @@ tempfile.workspace = true
 tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }
 tower = { version = "0.5", features = ["util"] }
 typst-assets = { workspace = true, features = ["fonts"] }
+
+[package.metadata.docs.rs]
+# The API is feature-gated throughout; document all of it, and label each item
+# with the feature that unlocks it.
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,6 +1,6 @@
 use crate::{
-    DocumentWorkspace, DuplicatePackageSpec, FontSet, PackageBundle, PackageBundleSet, PackageSpec,
-    SandboxedWorld, SandboxedWorldBuilder, WorkspaceValidationError,
+    DuplicatePackageSpec, FontSet, PackageBundle, PackageBundleSet, PackageSpec, Project,
+    ProjectValidationError, ProjectWorld, ProjectWorldBuilder,
 };
 use typst::foundations::{Datetime, Dict, IntoValue};
 
@@ -109,16 +109,13 @@ impl RenderEnvironment {
     }
 
     /// Build a Complete Project World for a Typst Project using this reusable base.
-    pub fn world(
-        &self,
-        project: DocumentWorkspace,
-    ) -> Result<SandboxedWorld, WorkspaceValidationError> {
+    pub fn world(&self, project: Project) -> Result<ProjectWorld, ProjectValidationError> {
         self.world_builder(project).build()
     }
 
     /// Start building a Complete Project World from this reusable base.
-    pub fn world_builder(&self, project: DocumentWorkspace) -> SandboxedWorldBuilder {
-        SandboxedWorld::builder(project, self.clone())
+    pub fn world_builder(&self, project: Project) -> ProjectWorldBuilder {
+        ProjectWorld::builder(project, self.clone())
     }
 
     /// Return a resolved package bundle by exact package spec.
@@ -206,7 +203,7 @@ impl<'de> serde::Deserialize<'de> for RenderEnvironment {
             .inputs(fields.inputs)
             .build()
             .map_err(|error| {
-                serde::de::Error::custom(format!("invalid Render Environment: {error:?}"))
+                serde::de::Error::custom(format!("invalid Render Environment: {error}"))
             })
     }
 }
@@ -292,26 +289,31 @@ impl RenderEnvironmentBuilder {
 }
 
 /// A render environment validation failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum RenderEnvironmentError {
     /// More than one Package Bundle has the same exact package spec.
-    DuplicatePackage { spec: PackageSpec },
+    #[error("more than one package bundle has the exact spec {spec}")]
+    DuplicatePackage {
+        /// The exact package spec that appeared more than once.
+        spec: PackageSpec,
+    },
 }
 
 #[cfg(test)]
 mod tests {
     use super::RenderEnvironment;
-    use crate::DocumentWorkspace;
+    use crate::Project;
     use typst::World;
 
     #[test]
     fn environment_builds_worlds_for_changing_projects() {
         let environment = RenderEnvironment::default();
         let first = environment
-            .world(DocumentWorkspace::from_source("First"))
+            .world(Project::from_source("First"))
             .expect("first world should build");
         let second = environment
-            .world(DocumentWorkspace::from_source("Second"))
+            .world(Project::from_source("Second"))
             .expect("second world should build");
 
         assert_eq!(

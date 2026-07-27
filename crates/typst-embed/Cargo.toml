@@ -1,7 +1,7 @@
 [package]
-name = "typst-project"
+name = "typst-embed"
 version.workspace = true
-description = "Explicit Typst projects, worlds, and rendering across native and wasm targets"
+description = "Embed Typst in an application: explicit projects, worlds, and rendering across native and wasm targets"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -32,13 +32,16 @@ system-downloader = ["download", "typst-package-source/system-downloader"]
 pack = ["dep:typst-pack"]
 # Pre-download verbatim package archives for embedding (native).
 vendor = ["download", "typst-package-source/vendor"]
-# Opt-in synchronous mid-render package resolution; see ADR 0008.
+# Opt-in synchronous mid-render package resolution: the explicit exception to the
+# closed-world default, where a native Project World may reach a Package Source
+# during Typst world lookup. Off by default.
 lazy-packages = []
 
 [dependencies]
 typst-package-source.workspace = true
 
 serde = { workspace = true, optional = true }
+thiserror.workspace = true
 typst.workspace = true
 typst-html = { workspace = true, optional = true }
 typst-kit.workspace = true
@@ -51,3 +54,9 @@ typst-render = { workspace = true, optional = true }
 pollster.workspace = true
 tempfile.workspace = true
 typst-assets = { workspace = true, features = ["fonts"] }
+
+[package.metadata.docs.rs]
+# The API is feature-gated throughout; document all of it, and label each item
+# with the feature that unlocks it.
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

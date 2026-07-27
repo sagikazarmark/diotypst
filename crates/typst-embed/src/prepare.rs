@@ -2,9 +2,7 @@ use crate::render::{
     PackageDependencyObservation, PackageDependencyTarget, RenderError,
     observe_package_dependencies,
 };
-use crate::{
-    DocumentWorkspace, PackageResolveError, PackageSource, PackageSpec, RenderEnvironment,
-};
+use crate::{PackageResolveError, PackageSource, PackageSpec, Project, RenderEnvironment};
 
 /// Options controlling one [`prepare_packages`] run.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -123,18 +121,18 @@ impl PackagePreparation {
 /// The preflight compiles are synchronous CPU work inside this async function; on threaded
 /// async runtimes, consider running the call inside a blocking task.
 pub async fn prepare_packages(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
     target: PackageDependencyTarget,
     source: &(impl PackageSource + ?Sized),
     options: PreparePackagesOptions,
 ) -> Result<PackagePreparation, RenderError> {
-    prepare_packages_with_progress(workspace, environment, target, source, options, |_| {}).await
+    prepare_packages_with_progress(project, environment, target, source, options, |_| {}).await
 }
 
 /// [`prepare_packages`] with a progress callback receiving [`PrepareEvent`]s.
 pub async fn prepare_packages_with_progress(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
     target: PackageDependencyTarget,
     source: &(impl PackageSource + ?Sized),
@@ -153,7 +151,7 @@ pub async fn prepare_packages_with_progress(
             iteration: iterations,
         });
 
-        let observation = observe_package_dependencies(workspace, &environment, target)?;
+        let observation = observe_package_dependencies(project, &environment, target)?;
         let missing = observation
             .packages()
             .iter()
@@ -218,8 +216,7 @@ mod tests {
     use crate::render_html;
     #[allow(unused_imports)]
     use crate::{
-        DocumentWorkspace, GatedPackages, MemoryPackages, PackageBundle, PackagePolicy,
-        RenderEnvironment,
+        GatedPackages, MemoryPackages, PackageBundle, PackagePolicy, Project, RenderEnvironment,
     };
     #[allow(unused_imports)]
     use std::str::FromStr;
@@ -258,11 +255,10 @@ mod tests {
         );
         let inner = test_package_bundle("inner", "1.0.0", "#let inner = [Nested import.]");
         let source = MemoryPackages::new([outer, inner]).expect("test source should be valid");
-        let workspace =
-            DocumentWorkspace::from_source("#import \"@preview/outer:1.0.0\": outer\n#outer");
+        let project = Project::from_source("#import \"@preview/outer:1.0.0\": outer\n#outer");
 
         let preparation = pollster::block_on(prepare_packages(
-            &workspace,
+            &project,
             &empty_environment(),
             PackageDependencyTarget::Html,
             &source,
@@ -276,7 +272,7 @@ mod tests {
         assert!(preparation.unresolved().is_empty());
         assert!(preparation.observation().compile_succeeded());
 
-        let html = render_html(&workspace, preparation.environment())
+        let html = render_html(&project, preparation.environment())
             .expect("prepared environment should render the transitive package import");
         assert!(html.as_str().contains("Nested import."));
     }
@@ -285,11 +281,10 @@ mod tests {
     #[test]
     fn prepare_packages_records_unresolved_packages_without_aborting() {
         let source = MemoryPackages::new([]).expect("empty source should be valid");
-        let workspace =
-            DocumentWorkspace::from_source("#import \"@preview/missing:1.0.0\": nothing\n#nothing");
+        let project = Project::from_source("#import \"@preview/missing:1.0.0\": nothing\n#nothing");
 
         let preparation = pollster::block_on(prepare_packages(
-            &workspace,
+            &project,
             &empty_environment(),
             PackageDependencyTarget::Html,
             &source,
@@ -314,12 +309,11 @@ mod tests {
     fn prepare_packages_reports_progress_events() {
         let example = test_package_bundle("example", "1.0.0", "#let answer = [42]");
         let source = MemoryPackages::new([example]).expect("test source should be valid");
-        let workspace =
-            DocumentWorkspace::from_source("#import \"@preview/example:1.0.0\": answer\n#answer");
+        let project = Project::from_source("#import \"@preview/example:1.0.0\": answer\n#answer");
 
         let mut events = Vec::new();
         pollster::block_on(prepare_packages_with_progress(
-            &workspace,
+            &project,
             &empty_environment(),
             PackageDependencyTarget::Html,
             &source,
@@ -365,10 +359,10 @@ mod tests {
         let b = test_package_bundle("b", "1.0.0", "#import \"@preview/c:1.0.0\": c\n#let b = c");
         let c = test_package_bundle("c", "1.0.0", "#let c = [Deep import.]");
         let source = MemoryPackages::new([a, b, c]).expect("test source should be valid");
-        let workspace = DocumentWorkspace::from_source("#import \"@preview/a:1.0.0\": a\n#a");
+        let project = Project::from_source("#import \"@preview/a:1.0.0\": a\n#a");
 
         let preparation = pollster::block_on(prepare_packages(
-            &workspace,
+            &project,
             &empty_environment(),
             PackageDependencyTarget::Html,
             &source,
@@ -397,12 +391,12 @@ mod tests {
         // resolve, the round makes no progress and the loop terminates without spinning.
         let example = test_package_bundle("example", "1.0.0", "#let answer = [42]");
         let source = MemoryPackages::new([example]).expect("test source should be valid");
-        let workspace = DocumentWorkspace::from_source(
+        let project = Project::from_source(
             "#import \"@preview/example:1.0.0\": answer\n#import \"@preview/missing:1.0.0\": nothing\n#answer",
         );
 
         let preparation = pollster::block_on(prepare_packages(
-            &workspace,
+            &project,
             &empty_environment(),
             PackageDependencyTarget::Html,
             &source,
@@ -427,11 +421,10 @@ mod tests {
         let example = test_package_bundle("example", "1.0.0", "#let answer = [42]");
         let source = MemoryPackages::new([example]).expect("test source should be valid");
         let source = GatedPackages::new(source, PackagePolicy::deny_all());
-        let workspace =
-            DocumentWorkspace::from_source("#import \"@preview/example:1.0.0\": answer\n#answer");
+        let project = Project::from_source("#import \"@preview/example:1.0.0\": answer\n#answer");
 
         let preparation = pollster::block_on(prepare_packages(
-            &workspace,
+            &project,
             &empty_environment(),
             PackageDependencyTarget::Html,
             &source,
@@ -453,11 +446,10 @@ mod tests {
     fn prepare_packages_observes_dependencies_for_the_paged_target() {
         let example = test_package_bundle("example", "1.0.0", "#let answer = [42]");
         let source = MemoryPackages::new([example]).expect("test source should be valid");
-        let workspace =
-            DocumentWorkspace::from_source("#import \"@preview/example:1.0.0\": answer\n#answer");
+        let project = Project::from_source("#import \"@preview/example:1.0.0\": answer\n#answer");
 
         let preparation = pollster::block_on(prepare_packages(
-            &workspace,
+            &project,
             &empty_environment(),
             PackageDependencyTarget::Paged,
             &source,

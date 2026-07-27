@@ -9,7 +9,7 @@ pub const SERVER_PACKAGE_PROXY_BASE: &str = "/typst/packages";
 #[cfg(all(target_arch = "wasm32", feature = "archive"))]
 mod fetch {
     use super::SERVER_PACKAGE_PROXY_BASE;
-    use typst_project::{
+    use typst_embed::{
         PackageBundle, PackagePolicy, PackageResolveError, PackageResolveFuture, PackageSource,
         PackageSpec, UNIVERSE_REGISTRY_URL, package_archive_url,
     };

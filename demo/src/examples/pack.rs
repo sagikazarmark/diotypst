@@ -33,9 +33,9 @@ pub fn PackExample() -> Element {
                                             file.filename(),
                                             file.bytes().len(),
                                         )),
-                                        Err(error) => status.set(format!("Browser download failed: {error:?}")),
+                                        Err(error) => status.set(format!("Browser download failed: {error}")),
                                     },
-                                    Err(error) => status.set(format!("Packing failed: {error:?}")),
+                                    Err(error) => status.set(format!("Packing failed: {error}")),
                                 }
                             },
                             "Build & download .typk"
@@ -61,7 +61,7 @@ pub fn PackExample() -> Element {
                                             let environment = match pack.render_environment_from(&base_environment) {
                                                 Ok(environment) => environment,
                                                 Err(error) => {
-                                                    return status.set(format!("Pack resources could not be fulfilled: {error:?}"));
+                                                    return status.set(format!("Pack resources could not be fulfilled: {error}"));
                                                 }
                                             };
                                             let world = environment
@@ -72,7 +72,7 @@ pub fn PackExample() -> Element {
                                             renderer.write().render_world(&world, RenderFormat::Html);
                                             status.set(pack_summary(&pack));
                                         }
-                                        Err(error) => status.set(format!("Not a readable pack: {error:?}")),
+                                        Err(error) => status.set(format!("Not a readable pack: {error}")),
                                     }
                                 }
                             },

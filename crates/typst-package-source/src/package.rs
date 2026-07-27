@@ -103,7 +103,9 @@ pub struct PackageBundleSet {
 }
 
 /// More than one Package Bundle carried the same exact package spec.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("more than one package bundle carries the exact spec {spec}")]
+#[non_exhaustive]
 pub struct DuplicatePackageSpec {
     /// The exact package spec that appeared more than once.
     pub spec: PackageSpec,
@@ -226,18 +228,27 @@ impl<'de> serde::Deserialize<'de> for PackageBundle {
 
         builder
             .build()
-            .map_err(|error| serde::de::Error::custom(format!("invalid Package Bundle: {error:?}")))
+            .map_err(|error| serde::de::Error::custom(format!("invalid Package Bundle: {error}")))
     }
 }
 
 /// A package bundle validation failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackageBundleError {
     /// A package file path does not name a file inside the package bundle.
-    InvalidPath { path: String },
+    #[error("package file path `{path}` does not name a file inside the package bundle")]
+    InvalidPath {
+        /// The rejected package-internal path.
+        path: String,
+    },
 
     /// More than one package file has the same package-internal path.
-    DuplicatePath { path: String },
+    #[error("more than one package file has the path `{path}`")]
+    DuplicatePath {
+        /// The path that appeared more than once.
+        path: String,
+    },
 }
 
 #[cfg(test)]

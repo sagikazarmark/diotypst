@@ -76,7 +76,7 @@ fn read_package_dir(spec: &PackageSpec, dir: &Path) -> Result<PackageBundle, Pac
         .build()
         .map_err(|error| PackageResolveError::Malformed {
             spec: spec.clone(),
-            message: format!("{error:?}"),
+            message: format!("{error}"),
         })
 }
 

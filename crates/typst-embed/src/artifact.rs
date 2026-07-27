@@ -1,5 +1,6 @@
 /// A selectable Render Artifact format.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum RenderFormat {
     /// PDF output.
     Pdf,
@@ -9,6 +10,19 @@ pub enum RenderFormat {
 
     /// Semantic HTML output.
     Html,
+}
+
+impl std::fmt::Display for RenderFormat {
+    /// Write the format's feature name: `pdf`, `page-images`, or `html`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::Pdf => "pdf",
+            Self::PageImages(_) => "page-images",
+            Self::Html => "html",
+        };
+
+        f.write_str(name)
+    }
 }
 
 /// A Render Artifact selected at runtime.

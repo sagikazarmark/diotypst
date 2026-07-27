@@ -1,6 +1,6 @@
-use crate::{DocumentWorkspace, DownloadFormat, RenderEnvironment};
 #[cfg(feature = "server")]
 use crate::{DownloadError, RenderDownloadError, render_download};
+use crate::{DownloadFormat, Project, RenderEnvironment};
 
 /// A server-side render request that prepares one Download File.
 ///
@@ -12,7 +12,7 @@ use crate::{DownloadError, RenderDownloadError, render_download};
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ServerRenderRequest {
-    workspace: DocumentWorkspace,
+    project: Project,
     environment: RenderEnvironment,
     format: DownloadFormat,
     filename: String,
@@ -21,13 +21,13 @@ pub struct ServerRenderRequest {
 impl ServerRenderRequest {
     /// Create a server-side render request.
     pub fn new(
-        workspace: DocumentWorkspace,
+        project: Project,
         environment: RenderEnvironment,
         format: DownloadFormat,
         filename: impl Into<String>,
     ) -> Self {
         Self {
-            workspace,
+            project,
             environment,
             format,
             filename: filename.into(),
@@ -35,8 +35,8 @@ impl ServerRenderRequest {
     }
 
     /// Return the requested Typst Project.
-    pub fn workspace(&self) -> &DocumentWorkspace {
-        &self.workspace
+    pub fn project(&self) -> &Project {
+        &self.project
     }
 
     /// Return the requested Render Environment.
@@ -61,7 +61,7 @@ pub fn server_render_download_response(
     request: &ServerRenderRequest,
 ) -> Result<axum::response::Response, RenderDownloadError> {
     let file = render_download(
-        &request.workspace,
+        &request.project,
         &request.environment,
         request.format,
         request.filename.clone(),

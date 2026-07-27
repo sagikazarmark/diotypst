@@ -66,18 +66,23 @@ impl ProxyArchiveRequest {
 }
 
 /// A package proxy failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackageProxyError {
     /// The request path was not a `{name}-{version}.tar.gz` archive of an exact Package Spec.
+    #[error("`{0}` is not a `{{name}}-{{version}}.tar.gz` archive of an exact package spec")]
     InvalidArchiveName(String),
 
     /// The proxy's Package Policy denies this package.
+    #[error("the proxy's package policy denies {0}")]
     Denied(PackageSpec),
 
     /// The upstream registry does not serve this archive.
+    #[error("the upstream registry does not serve an archive for {0}")]
     UpstreamNotFound(PackageSpec),
 
     /// The upstream fetch failed.
+    #[error("the upstream registry fetch failed: {0}")]
     Upstream(String),
 }
 

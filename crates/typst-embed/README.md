@@ -1,9 +1,9 @@
-# typst-project
+# typst-embed
 
-[![crates.io](https://img.shields.io/crates/v/typst-project?style=flat-square)](https://crates.io/crates/typst-project)
-[![docs.rs](https://img.shields.io/docsrs/typst-project?style=flat-square)](https://docs.rs/typst-project)
+[![crates.io](https://img.shields.io/crates/v/typst-embed?style=flat-square)](https://crates.io/crates/typst-embed)
+[![docs.rs](https://img.shields.io/docsrs/typst-embed?style=flat-square)](https://docs.rs/typst-embed)
 
-**Explicit Typst projects, worlds, and rendering across native and wasm targets.**
+**Embed Typst in an application: explicit projects, worlds, and rendering across native and wasm targets.**
 
 This crate owns the target-agnostic path from an explicit Typst Project and Render Environment to a complete Typst `World` and its Render Artifacts (PDF, Page Images, semantic HTML), including diagnostics and the package preparation loop. It does not read host files or fetch packages implicitly during Typst world lookup. It extends [typst-kit](https://docs.rs/typst-kit) with the explicit, in-memory, wasm-safe path that closed-world and in-browser rendering need.
 
@@ -11,15 +11,15 @@ This crate owns the target-agnostic path from an explicit Typst Project and Rend
 
 ```toml
 [dependencies]
-typst-project = "0.1"
+typst-embed = "0.1"
 ```
 
 ## Quick Start
 
 ```rust
-use typst_project::{DocumentWorkspace, RenderEnvironment};
+use typst_embed::{Project, RenderEnvironment};
 
-let project = DocumentWorkspace::from_source("= Hello");
+let project = Project::from_source("= Hello");
 let environment = RenderEnvironment::builder()
     .input("customer", "Acme")
     .build()
@@ -32,7 +32,7 @@ let world = environment.world(project)
 Render Environment clones share immutable package storage and lazily prepared font state, so one
 environment can cheaply build worlds for changing editor projects. Use
 `environment.world_builder(project).html().build()` when the world must enable Typst's HTML
-feature. A stateful editor can retain one `SandboxedWorld` and call `replace_project` between
+feature. A stateful editor can retain one `ProjectWorld` and call `replace_project` between
 renders; its file store edits previously requested Typst sources in place for incremental
 compilation while the root and Project File paths remain stable. Project layout changes replace
 the file store without rebuilding prepared environment resources.
@@ -51,13 +51,15 @@ the file store without rebuilding prepared environment resources.
 - `system-downloader` (native): the built-in native HTTPS downloader from typst-kit.
 - `pack` (wasm-safe): read and write portable `.typk` Project Pack archives.
 - `vendor` (native): pre-download verbatim package archives for embedding.
-- `lazy-packages`: opt-in synchronous mid-render package resolution; see ADR 0008.
+- `lazy-packages`: opt-in synchronous mid-render package resolution. Off by default: it
+  lets a native Project World reach a Package Source during Typst world lookup, which
+  relaxes the "no implicit I/O mid-render" guarantee the rest of the crate holds.
 
 ## Domain Model
 
-- `DocumentWorkspace` is the document input: one root Typst entrypoint plus explicit Project Files addressed by normalized root-relative paths.
+- `Project` is the document input: one root Typst entrypoint plus explicit Project Files addressed by normalized root-relative paths.
 - `RenderEnvironment` is non-source render context: Package Bundles, fonts, deterministic render date, and Typst `sys.inputs`.
-- `SandboxedWorld` is the crate-owned complete Typst `World` built from an explicit Typst Project and Render Environment.
+- `ProjectWorld` is the crate-owned complete Typst `World` built from an explicit Typst Project and Render Environment.
 - `WorldOverlay` layers exact resource overrides over an existing complete world without mutating the base world.
 
 ## Render Capabilities
@@ -82,7 +84,7 @@ without the Typst compiler, and is re-exported here in full:
 [`typst-package-source`]: https://crates.io/crates/typst-package-source
 
 ```rust
-use typst_project::{
+use typst_embed::{
     GatedPackages, MemoryPackages, PackageBundle, PackagePolicy, SyncPackageSource,
 };
 
@@ -119,7 +121,7 @@ Available sources:
 
 The async `PackageSource` trait is the World Preparation seam (browser fetch implementations
 live in `diotypst`); `SyncPackageSource` additionally supports the opt-in
-`lazy-packages` mid-render resolution described in ADR 0008.
+`lazy-packages` mid-render resolution.
 
 ## Project Packs
 
@@ -132,9 +134,9 @@ converts straight into this crate's domain types:
 ```rust
 # #[cfg(feature = "pack")]
 # {
-use typst_project::{DocumentWorkspace, ProjectPack};
+use typst_embed::{Project, ProjectPack};
 
-let pack = ProjectPack::builder(DocumentWorkspace::from_source("= Portable"))
+let pack = ProjectPack::builder(Project::from_source("= Portable"))
     .build()
     .expect("pack should be valid");
 let bytes = pack.to_bytes().expect("pack should serialize");
@@ -162,18 +164,18 @@ without storing their bytes in the archive.
 
 ## Overlays
 
-Overlays shadow exact resources before delegating unresolved requests to the base world. Workspace files match by workspace path, package bundles match by exact package spec, and overlay render dates only affect calls through that overlay.
+Overlays shadow exact resources before delegating unresolved requests to the base world. Project files match by project path, package bundles match by exact package spec, and overlay render dates only affect calls through that overlay.
 
 ```rust
-use typst_project::{SandboxedWorld, WorldOverlay};
+use typst_embed::{ProjectWorld, WorldOverlay};
 
-# let project = typst_project::DocumentWorkspace::from_source("Base");
-# let environment = typst_project::RenderEnvironment::builder().build().unwrap();
-# let base = SandboxedWorld::new(project, environment).unwrap();
+# let project = typst_embed::Project::from_source("Base");
+# let environment = typst_embed::RenderEnvironment::builder().build().unwrap();
+# let base = ProjectWorld::new(project, environment).unwrap();
 let overlay = WorldOverlay::new(base)
     .source_file("preview.typ", "Overlay main")?
     .main("preview.typ")?;
-# Ok::<_, typst_project::WorkspaceValidationError>(())
+# Ok::<_, typst_embed::ProjectValidationError>(())
 ```
 
 ## Related Crates
@@ -181,7 +183,7 @@ let overlay = WorldOverlay::new(base)
 - [`typst-package-source`](https://crates.io/crates/typst-package-source): the
   package-acquisition tier, re-exported here in full.
 - [`diotypst`](https://crates.io/crates/diotypst): the Dioxus-facing crate built on this
-  one; it re-exports the whole `typst-project` API.
+  one; it re-exports the whole `typst-embed` API.
 
 See the [workspace README](https://github.com/sagikazarmark/diotypst) for the full
 documentation, design terminology, and live examples.

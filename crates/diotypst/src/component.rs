@@ -53,7 +53,7 @@ fn TypstRenderView(renderer: Signal<HeadlessRender>) -> Element {
         RenderStatus::Stale => "stale",
         RenderStatus::Failed => "failed",
     };
-    let error = state.error().map(|error| format!("{error:?}"));
+    let error = state.error().map(ToString::to_string);
 
     rsx! {
         div { class: "typst", "data-render-status": "{status}",

@@ -15,7 +15,7 @@ pub fn MultiFile() -> Element {
             intro: "A Typst Project is one Root Entrypoint plus explicit Project Files addressed by root-relative Project Paths. Includes, images, and data loading resolve against those files only.",
         }
         ExampleSection {
-            title: "DocumentWorkspace::builder",
+            title: "Project::builder",
             intro: rsx! {
                 "The builder collects "
                 InlineCode { "source_file" }
@@ -53,7 +53,7 @@ pub fn ImportProject() -> Element {
         }
         DocsCallout {
             title: "Closed-world rendering",
-            "Rendering sees only the Typst Project, prepared Package Bundles, the configured Font Set, and the configured render date. Imports here feed that sandbox; they never widen it."
+            "Rendering sees only the Typst Project, prepared Package Bundles, the configured Font Set, and the configured render date. Imports here feed that boundary; they never widen it."
         }
     }
 }

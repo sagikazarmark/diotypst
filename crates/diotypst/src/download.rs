@@ -1,6 +1,6 @@
 use crate::{
-    DocumentWorkspace, PageImage, PageImageOptions, PageImagesArtifact, PdfArtifact,
-    RenderArtifact, RenderEnvironment, RenderError, RenderFormat, RenderState, render_artifact,
+    PageImage, PageImageOptions, PageImagesArtifact, PdfArtifact, Project, RenderArtifact,
+    RenderEnvironment, RenderError, RenderFormat, RenderState, render_artifact,
 };
 
 /// A downloadable output format for a Download Action.
@@ -9,6 +9,7 @@ use crate::{
 /// and Page Images can be requested as one page or as a Page Image Archive.
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum DownloadFormat {
     /// PDF download output.
     Pdf,
@@ -41,13 +42,16 @@ impl DownloadFormat {
 }
 
 /// A Download Action failure while rendering on demand.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum RenderDownloadError {
     /// Typst rendering failed.
-    Render(RenderError),
+    #[error("the download could not be rendered")]
+    Render(#[source] RenderError),
 
     /// The rendered artifact could not be prepared as the requested download.
-    Download(DownloadError),
+    #[error("the rendered artifact could not be prepared as the requested download")]
+    Download(#[source] DownloadError),
 }
 
 impl From<RenderError> for RenderDownloadError {
@@ -69,12 +73,12 @@ impl From<DownloadError> for RenderDownloadError {
 /// for the same inputs. Rendering dispatches through [`render_artifact`]; packaging
 /// (page selection, Page Image Archive assembly) happens here.
 pub fn render_download(
-    workspace: &DocumentWorkspace,
+    project: &Project,
     environment: &RenderEnvironment,
     format: DownloadFormat,
     filename: impl Into<String>,
 ) -> Result<DownloadFile, RenderDownloadError> {
-    let artifact = render_artifact(workspace, environment, format.render_format())?;
+    let artifact = render_artifact(project, environment, format.render_format())?;
 
     let file = match (format, artifact) {
         (DownloadFormat::Pdf, RenderArtifact::Pdf(pdf)) => DownloadFile::from_pdf(filename, &pdf),
@@ -207,12 +211,15 @@ impl DownloadFile {
 }
 
 /// A download preparation failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum DownloadError {
     /// No suitable Render Artifact is available for the requested download.
+    #[error("no render artifact is available for the requested download")]
     Unavailable,
 
     /// The Render Artifact exists but is not a supported download format.
+    #[error("the render artifact is not a downloadable format")]
     UnsupportedArtifact,
 }
 
@@ -272,18 +279,23 @@ pub fn trigger_browser_download(file: &DownloadFile) -> Result<(), BrowserDownlo
 
 /// A browser Download Action failure.
 #[cfg(target_arch = "wasm32")]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum BrowserDownloadError {
     /// No browser window is available.
+    #[error("no browser window is available")]
     WindowUnavailable,
 
     /// No document is available in the browser window.
+    #[error("no document is available in the browser window")]
     DocumentUnavailable,
 
     /// No document body is available to host the temporary download link.
+    #[error("no document body is available to host the temporary download link")]
     DocumentBodyUnavailable,
 
     /// A browser DOM, Blob, or object URL operation failed.
+    #[error("a browser DOM, blob, or object URL operation failed")]
     BrowserOperationFailed,
 }
 
