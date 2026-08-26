@@ -67,17 +67,47 @@ impl ProjectPack {
     }
 
     /// Parse a `.typk` archive into a Project Pack.
+    ///
+    /// Reading is bounded by typst-pack's reference version-1 ceilings: at most
+    /// 512 MB of archive, 100,000 members, and 2 GB of total expanded content.
+    /// A pack that exceeds any of them is rejected as
+    /// [`ProjectPackError::Archive`] rather than expanded.
+    ///
+    /// Those ceilings are generous for an untrusted upload, and expanded
+    /// content is what a decompression bomb inflates. Callers accepting packs
+    /// from elsewhere should bound the input themselves; a byte-length check on
+    /// the archive alone does not bound expansion.
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self, ProjectPackError> {
-        let source_bytes = bytes.as_ref().to_vec();
-        let pack = typst_pack::Pack::from_bytes(source_bytes.clone()).map_err(|error| {
+        let bytes = bytes.as_ref();
+        let limits = typst_pack::pack_archive::DecodeLimits::reference_v1();
+
+        // Refuse an oversized archive against the borrowed input, before it is
+        // copied. The decoder enforces the same ceiling, but only once it owns
+        // the bytes, so checking here keeps a rejected archive from being
+        // buffered in full first.
+        if bytes.len() as u64 > limits.archive_bytes() {
+            return Err(ProjectPackError::Archive {
+                message: format!(
+                    "the archive is {} bytes, exceeding the {}-byte limit",
+                    bytes.len(),
+                    limits.archive_bytes()
+                ),
+            });
+        }
+
+        // The decoder borrows the archive, so its bytes are reclaimed
+        // afterwards for `to_bytes` rather than copied a second time.
+        let archive = typst_pack::PackArchiveBytes::from_vec(bytes.to_vec());
+        let pack = typst_pack::pack_archive::decode(&archive, limits).map_err(|error| {
             ProjectPackError::Archive {
                 message: error.to_string(),
             }
         })?;
+        let source_bytes = archive.into_vec();
 
         let mut project = Project::builder(pack.entrypoint());
         for (path, data) in pack.files() {
-            project = project.file(path, data.as_slice());
+            project = project.file(path, data);
         }
         let project = project.build().map_err(ProjectPackError::Project)?;
 
@@ -85,7 +115,7 @@ impl ProjectPack {
         for (spec, files) in pack.packages() {
             let mut bundle = PackageBundle::builder(spec.clone());
             for (path, data) in files {
-                bundle = bundle.file(path, data.as_slice());
+                bundle = bundle.file(path, data);
             }
             let bundle = bundle.build().map_err(|error| ProjectPackError::Package {
                 spec: spec.to_string(),
@@ -141,13 +171,14 @@ impl ProjectPack {
         let mut font_containers = std::collections::HashSet::new();
         let mut font_files = Vec::new();
         for font in pack.fonts() {
-            let digest = typst_pack::FontContainerIdentity::from_bytes(font.data()).digest();
+            let digest =
+                typst_pack::CanonicalIdentity::for_font_container_bytes(font.data()).digest();
             if font_containers.insert(digest) {
                 font_files.push(font.data().to_vec());
             }
         }
 
-        let metadata = pack.manifest().metadata().map(|metadata| {
+        let metadata = pack.metadata().map(|metadata| {
             let mut converted = ProjectPackMetadata::new();
             if let Some(name) = metadata.name() {
                 converted = converted.with_name(name);
@@ -234,7 +265,9 @@ impl ProjectPack {
 
         let pack = pack.build().map_err(|error| archive_error(&error))?;
 
-        pack.to_bytes().map_err(|error| archive_error(&error))
+        typst_pack::pack_archive::encode(&pack)
+            .map(typst_pack::PackArchiveBytes::into_vec)
+            .map_err(|error| archive_error(&error))
     }
 
     /// Return the packed Typst Project.
@@ -344,13 +377,13 @@ impl ProjectPack {
         let mut containers = std::collections::HashMap::new();
         for data in &self.font_files {
             containers.insert(
-                typst_pack::FontContainerIdentity::from_bytes(data).digest(),
+                typst_pack::CanonicalIdentity::for_font_container_bytes(data).digest(),
                 data.clone(),
             );
         }
         for data in external {
             containers.insert(
-                typst_pack::FontContainerIdentity::from_bytes(data).digest(),
+                typst_pack::CanonicalIdentity::for_font_container_bytes(data).digest(),
                 data.clone(),
             );
         }

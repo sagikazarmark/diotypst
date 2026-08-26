@@ -1,6 +1,16 @@
 use super::*;
 use crate::RenderDate;
 
+/// Decode `.typk` bytes with the raw typst-pack reader, so the assertions
+/// below check the archive itself rather than our own round-trip.
+fn decode_pack(bytes: &[u8]) -> typst_pack::Pack {
+    typst_pack::pack_archive::decode(
+        &typst_pack::PackArchiveBytes::from_vec(bytes.to_vec()),
+        typst_pack::pack_archive::DecodeLimits::reference_v1(),
+    )
+    .expect("raw pack should parse")
+}
+
 fn sample_pack() -> ProjectPack {
     let project = Project::builder("main.typ")
         .source_file(
@@ -48,7 +58,7 @@ fn project_pack_round_trips_through_typk_bytes() {
     let pack = sample_pack();
 
     let bytes = pack.to_bytes().expect("pack should serialize");
-    let raw = typst_pack::Pack::from_bytes(bytes.clone()).expect("raw pack should parse");
+    let raw = decode_pack(&bytes);
     let external = raw
         .package_requirements()
         .iter()
@@ -235,8 +245,7 @@ fn project_pack_fulfills_external_fonts_from_a_base_environment() {
         .expect("pack with an external font should build");
 
     assert_eq!(pack.external_font_requirements().len(), 1);
-    let raw = typst_pack::Pack::from_bytes(pack.to_bytes().expect("pack should serialize"))
-        .expect("raw pack should parse");
+    let raw = decode_pack(&pack.to_bytes().expect("pack should serialize"));
     assert!(!raw.font_catalog()[0].is_embedded());
     assert!(raw.font_catalog()[1].is_embedded());
     assert!(matches!(
@@ -314,13 +323,15 @@ fn project_pack_builder_rejects_unrecognized_fonts_and_duplicate_packages() {
 fn project_pack_reads_archives_written_by_typst_pack_directly() {
     // Interop guard: a pack assembled with the raw typst-pack builder,
     // not just our own writer, converts into crate domain types.
-    let pack = typst_pack::Pack::builder("main.typ")
-        .file("main.typ", b"Hello".to_vec())
-        .expect("file should be valid")
-        .build()
-        .expect("raw pack should build")
-        .to_bytes()
-        .expect("raw pack should serialize");
+    let pack = typst_pack::pack_archive::encode(
+        &typst_pack::Pack::builder("main.typ")
+            .file("main.typ", b"Hello".to_vec())
+            .expect("file should be valid")
+            .build()
+            .expect("raw pack should build"),
+    )
+    .expect("raw pack should serialize")
+    .into_vec();
 
     let read = ProjectPack::from_bytes(&pack).expect("raw pack should parse");
 
@@ -328,5 +339,64 @@ fn project_pack_reads_archives_written_by_typst_pack_directly() {
     assert_eq!(
         read.project().file_bytes("main.typ"),
         Some(b"Hello".as_slice())
+    );
+}
+
+/// A golden version-1 `.typk` archive, written by typst-pack 0.4.0.
+///
+/// This pins the decoder against a fixed archive rather than against whatever
+/// the current encoder happens to emit, so a format-level regression in any
+/// future typst-pack upgrade fails here.
+///
+/// It is not, by itself, evidence of backward compatibility: 0.5's encoder
+/// reproduces these exact bytes, because every construct in the fixture is
+/// encoded identically by both releases. The one construct that would differ
+/// is an embedded font, which 0.4 stored at `fonts/<family-slug>.<ext>` and
+/// 0.5 stores at `fonts/<hex-digest>.<ext>`. Covering that path needs a
+/// font-bearing fixture, and the smallest bundled font is ~250 KB.
+const LEGACY_PACK: &[u8] = include_bytes!("testdata/typst-pack-0.4.0.typk");
+
+#[test]
+fn a_golden_version_1_archive_still_reads() {
+    let pack = ProjectPack::from_bytes(LEGACY_PACK).expect("a version-1 archive should read");
+
+    assert_eq!(pack.project().root_path().get_without_slash(), "main.typ");
+    assert_eq!(
+        pack.project().file_bytes("chapters/intro.typ"),
+        Some(b"= Intro".as_slice())
+    );
+    assert_eq!(
+        pack.project().file_bytes("assets/logo.png"),
+        Some(b"\x89PNG".as_slice())
+    );
+
+    let vendored = pack.package_bundles();
+    assert_eq!(vendored.len(), 1);
+    assert_eq!(vendored[0].spec().to_string(), "@demo/badge:0.1.0");
+
+    let external = pack.external_package_requirements();
+    assert_eq!(external.len(), 1);
+    assert_eq!(external[0].spec().to_string(), "@preview/cetz:0.4.2");
+    assert_eq!(external[0].file_count(), 2);
+
+    let metadata = pack.metadata().expect("the archive carries metadata");
+    assert_eq!(metadata.name(), Some("Legacy fixture"));
+    assert_eq!(metadata.authors(), ["diotypst"]);
+}
+
+#[test]
+fn the_font_container_digest_survived_the_typst_pack_rewrite() {
+    // 0.4.0 computed this with `FontContainerIdentity::from_bytes`, which 0.5
+    // replaced with `CanonicalIdentity::for_font_container_bytes`. A changed
+    // digest would silently invalidate every font requirement in an existing
+    // pack, so the value is pinned rather than recomputed.
+    const SAMPLE: &[u8] = b"diotypst font container fixture";
+    const DIGEST_FROM_0_4_0: [u8; 16] = [
+        151, 187, 175, 218, 114, 58, 14, 58, 233, 50, 63, 102, 155, 208, 209, 184,
+    ];
+
+    assert_eq!(
+        typst_pack::CanonicalIdentity::for_font_container_bytes(SAMPLE).digest(),
+        DIGEST_FROM_0_4_0
     );
 }

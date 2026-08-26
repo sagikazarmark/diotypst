@@ -49,7 +49,9 @@ the file store without rebuilding prepared environment resources.
   directories.
 - `download` (native): download packages from a Typst Universe-style registry.
 - `system-downloader` (native): the built-in native HTTPS downloader from typst-kit.
-- `pack` (wasm-safe): read and write portable `.typk` Project Pack archives.
+- `pack` (wasm-safe): read and write portable `.typk` Project Pack archives. Reads are
+  bounded by typst-pack's reference version-1 ceilings (512 MB archive, 100,000 members,
+  2 GB expanded content); bound untrusted input yourself before reading it.
 - `vendor` (native): pre-download verbatim package archives for embedding.
 - `lazy-packages`: opt-in synchronous mid-render package resolution. Off by default: it
   lets a native Project World reach a Package Source during Typst world lookup, which
