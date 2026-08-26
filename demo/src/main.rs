@@ -44,7 +44,7 @@ async fn main() {
     use crate::demo_package_policy;
     use axum::response::IntoResponse;
     use diotypst::{
-        DownloaderArchiveFetcher, PackageProxyConfig, SystemDownloader,
+        DownloaderArchiveFetcher, PackageProxyConfig, RustlsDownloader,
         server_package_proxy_router, server_render_download_router,
     };
     use dioxus_server::DioxusRouterExt;
@@ -66,7 +66,7 @@ async fn main() {
         .merge(server_package_proxy_router(
             PackageProxyConfig::new(demo_package_policy())
                 .with_cache_dir(std::env::temp_dir().join("diotypst-demo-packages")),
-            DownloaderArchiveFetcher(SystemDownloader::new(concat!(
+            DownloaderArchiveFetcher(RustlsDownloader::new(concat!(
                 "diotypst-demo/",
                 env!("CARGO_PKG_VERSION")
             ))),

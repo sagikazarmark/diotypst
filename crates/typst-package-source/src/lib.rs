@@ -20,6 +20,8 @@ mod policy;
 mod proxy;
 #[cfg(feature = "download")]
 mod registry;
+#[cfg(feature = "rustls-downloader")]
+mod rustls_downloader;
 mod source;
 #[cfg(feature = "vendor")]
 mod vendor;
@@ -40,6 +42,8 @@ pub use registry::{
     Downloader, Progress, ProgressDownloader, ProgressReporter, RegistryPackages,
     UNIVERSE_NAMESPACE, download_package_archive,
 };
+#[cfg(feature = "rustls-downloader")]
+pub use rustls_downloader::{RustlsCertError, RustlsDownloader};
 pub use source::{
     GatedPackages, MaybeSendSync, MemoryPackages, MemoryPackagesError, PackageResolveError,
     PackageResolveFuture, PackageSource, PackageSourceChain, SyncAdapter, SyncPackageSource,

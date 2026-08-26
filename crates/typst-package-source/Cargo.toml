@@ -19,19 +19,37 @@ archive = ["dep:flate2", "dep:tar"]
 fs-packages = ["dep:typst-kit", "dep:typst-library", "typst-kit/system-packages"]
 # Download packages from a Typst Universe-style registry (native).
 download = ["archive", "fs-packages", "typst-kit/universe-packages"]
-# Built-in native HTTPS downloader from typst-kit.
+# Built-in native HTTPS downloader from typst-kit (links OpenSSL through native-tls).
 system-downloader = ["download", "typst-kit/system-downloader"]
+# Native HTTPS downloader built on rustls: pure-Rust TLS, platform trust roots,
+# and no OpenSSL or system TLS library in the build (native).
+rustls-downloader = [
+    "download",
+    "dep:env_proxy",
+    "dep:rustls",
+    "dep:rustls-native-certs",
+    "dep:rustls-pki-types",
+    "dep:ureq",
+]
 # Pre-download verbatim package archives for embedding (native).
 vendor = ["download"]
 
 [dependencies]
+env_proxy = { version = "0.4", optional = true }
 flate2 = { version = "1", optional = true }
+# rustls is pinned to what ureq 2 links, so one rustls resolves for the
+# `ClientConfig` handed to the agent. `tls12` is declared rather than inherited
+# from ureq's feature set, so the accepted protocol versions are ours to state.
+rustls = { version = "0.23.19", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
+rustls-pki-types = { version = "1", features = ["std"], optional = true }
 serde = { workspace = true, optional = true }
 tar = { version = "0.4", optional = true, default-features = false }
 typst-kit = { workspace = true, optional = true }
 typst-library = { workspace = true, optional = true }
 thiserror = { workspace = true }
 typst-syntax = { workspace = true }
+ureq = { version = "2", default-features = false, features = ["tls", "gzip"], optional = true }
 
 [dev-dependencies]
 pollster = { workspace = true }

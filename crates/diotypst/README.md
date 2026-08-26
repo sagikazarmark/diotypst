@@ -51,7 +51,16 @@ assert!(pdf.bytes().starts_with(b"%PDF-"));
   directories.
 - `download` (native): download packages from a Typst Universe-style registry.
 - `system-downloader` (native): the built-in native HTTPS downloader from typst-kit.
-- `pack` (wasm-safe): read and write portable `.typk` Project Pack archives.
+  Uses the operating system's TLS stack, which links OpenSSL on Linux.
+- `rustls-downloader` (native): the same job with rustls, so the build links no OpenSSL
+  and no system TLS library, and needs no pkg-config or libssl-dev. Trust roots still
+  come from the platform certificate store. rustls's `ring` backend still compiles a
+  small amount of C and assembly through `cc`, so a C compiler is still required. Pick
+  one downloader or the other; enabling `system-downloader` anywhere in the build brings
+  OpenSSL back through Cargo feature unification.
+- `pack` (wasm-safe): read and write portable `.typk` Project Pack archives. Reads are
+  bounded by typst-pack's reference version-1 ceilings (512 MB archive, 100,000 members,
+  2 GB expanded content); bound untrusted input yourself before reading it.
 - `vendor` (native): pre-download verbatim package archives for embedding.
 - `lazy-packages`: opt-in synchronous mid-render package resolution. Off by default: it
   lets a native Project World reach a Package Source during Typst world lookup, which

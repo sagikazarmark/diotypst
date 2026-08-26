@@ -26,8 +26,11 @@ archive = ["typst-package-source/archive"]
 fs-packages = ["typst-package-source/fs-packages"]
 # Download packages from a Typst Universe-style registry (native).
 download = ["archive", "fs-packages", "typst-package-source/download"]
-# Built-in native HTTPS downloader from typst-kit.
+# Built-in native HTTPS downloader from typst-kit (links OpenSSL through native-tls).
 system-downloader = ["download", "typst-package-source/system-downloader"]
+# Native HTTPS downloader built on rustls: pure-Rust TLS, platform trust roots,
+# and no OpenSSL or system TLS library in the build (native).
+rustls-downloader = ["download", "typst-package-source/rustls-downloader"]
 # Read and write portable `.typk` Project Pack archives (wasm-safe).
 pack = ["dep:typst-pack"]
 # Pre-download verbatim package archives for embedding (native).

@@ -107,6 +107,8 @@ pub use typst_embed::{
 pub use typst_embed::{Project, ProjectBuilder, ProjectFile, ProjectValidationError, VirtualPath};
 pub use typst_embed::{ProjectWorld, ProjectWorldBuilder, WorldOverlay};
 pub use typst_embed::{RenderDiagnostic, RenderSourceIdentity, RenderSourceRange};
+#[cfg(feature = "rustls-downloader")]
+pub use typst_embed::{RustlsCertError, RustlsDownloader};
 #[cfg(feature = "vendor")]
 pub use typst_embed::{VendorError, vendor_package_archives};
 #[cfg(feature = "html")]

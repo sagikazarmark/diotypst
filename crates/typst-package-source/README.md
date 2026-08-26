@@ -55,6 +55,13 @@ let resolved = source.resolve_sync(&"@preview/example:1.0.0".parse().expect("spe
   directories.
 - `download` (native): download packages from a Typst Universe-style registry.
 - `system-downloader` (native): the built-in native HTTPS downloader from typst-kit.
+  Uses the operating system's TLS stack, which links OpenSSL on Linux.
+- `rustls-downloader` (native): the same job with rustls, so the build links no OpenSSL
+  and no system TLS library, and needs no pkg-config or libssl-dev. Trust roots still
+  come from the platform certificate store. rustls's `ring` backend still compiles a
+  small amount of C and assembly through `cc`, so a C compiler is still required. Pick
+  one downloader or the other; enabling `system-downloader` anywhere in the build brings
+  OpenSSL back through Cargo feature unification.
 - `vendor` (native): pre-download verbatim package archives for embedding.
 
 ## Sources
