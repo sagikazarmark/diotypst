@@ -67,8 +67,9 @@ impl<'a> ProjectPackEnvironmentBuilder<'a> {
             .collect::<std::collections::HashSet<_>>();
         self.font_files
             .extend(environment.font_set().container_files_where(|data| {
-                required_fonts
-                    .contains(&typst_pack::FontContainerIdentity::from_bytes(data).digest())
+                required_fonts.contains(
+                    &typst_pack::CanonicalIdentity::for_font_container_bytes(data).digest(),
+                )
             }));
         self
     }

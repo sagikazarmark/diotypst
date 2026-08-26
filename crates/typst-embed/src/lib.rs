@@ -66,6 +66,8 @@ pub use typst_package_source::{
 };
 #[cfg(feature = "fs-packages")]
 pub use typst_package_source::{FsPackages, SystemPackages};
+#[cfg(feature = "rustls-downloader")]
+pub use typst_package_source::{RustlsCertError, RustlsDownloader};
 #[cfg(feature = "vendor")]
 pub use typst_package_source::{VendorError, vendor_package_archives};
 

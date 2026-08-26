@@ -49,7 +49,16 @@ the file store without rebuilding prepared environment resources.
   directories.
 - `download` (native): download packages from a Typst Universe-style registry.
 - `system-downloader` (native): the built-in native HTTPS downloader from typst-kit.
-- `pack` (wasm-safe): read and write portable `.typk` Project Pack archives.
+  Uses the operating system's TLS stack, which links OpenSSL on Linux.
+- `rustls-downloader` (native): the same job with rustls, so the build links no OpenSSL
+  and no system TLS library, and needs no pkg-config or libssl-dev. Trust roots still
+  come from the platform certificate store. rustls's `ring` backend still compiles a
+  small amount of C and assembly through `cc`, so a C compiler is still required. Pick
+  one downloader or the other; enabling `system-downloader` anywhere in the build brings
+  OpenSSL back through Cargo feature unification.
+- `pack` (wasm-safe): read and write portable `.typk` Project Pack archives. Reads are
+  bounded by typst-pack's reference version-1 ceilings (512 MB archive, 100,000 members,
+  2 GB expanded content); bound untrusted input yourself before reading it.
 - `vendor` (native): pre-download verbatim package archives for embedding.
 - `lazy-packages`: opt-in synchronous mid-render package resolution. Off by default: it
   lets a native Project World reach a Package Source during Typst world lookup, which
@@ -115,8 +124,8 @@ Available sources:
 - `RegistryPackages` (feature `download`): download from Typst Universe or a mirror through a
   typst-kit `Downloader`, optionally retaining downloads in an `FsPackages` cache. Missing
   versions of known packages report `VersionNotFound` with the latest version from the package
-  index, like typst-cli. The `system-downloader` feature provides a built-in native HTTPS
-  downloader.
+  index, like typst-cli. The `rustls-downloader` and `system-downloader` features each
+  provide a built-in native HTTPS downloader, over rustls and over the OS TLS stack.
 - `vendor_package_archives` (feature `vendor`): pre-download verbatim archives for embedding.
 
 The async `PackageSource` trait is the World Preparation seam (browser fetch implementations

@@ -32,7 +32,7 @@ web = [
     "dioxus/web",
 ]
 # Native fullstack server: SSR download pages, the Server Render Route, and
-# the package proxy backed by the built-in downloader.
+# the package proxy backed by the built-in rustls downloader.
 server = [
     "dep:axum",
     "dep:diotypst",
@@ -46,7 +46,7 @@ server = [
     "diotypst/page-images",
     "diotypst/pdf",
     "diotypst/server",
-    "diotypst/system-downloader",
+    "diotypst/rustls-downloader",
     "dioxus/cli-config",
     "dioxus/fullstack",
     "dioxus/server",
