@@ -1,0 +1,117 @@
+let VERSION = "24.19.0"
+
+let debian: Container! {
+  Dagger.container.from("debian:trixie-slim")
+}
+
+type NodeRelease {
+  version: String!
+}
+
+type Tests {
+  """
+  Installs the requested Node.js version and configures npm.
+  """
+  container: Void @check {
+    let container = Dagger
+      .nodeSetup(VERSION, cache: Dagger.cacheVolume("node-setup-test-npm"))
+      .container(
+        debian
+          .withNewFile(
+            "/usr/bin/node",
+            "#!/bin/sh\nprintf old-node",
+            permissions: 493,
+          )
+          .withEnvVariable(
+            "PATH",
+            "/custom/bin:/usr/bin:/bin",
+          ),
+      )
+
+    assert { container.withExec(["node", "--version"]).stdout.trimSpace == "v" + VERSION }
+    assert { container.withExec(["npm", "--version"]).stdout.trimSpace != "" }
+    assert { container.envVariable("NPM_CONFIG_CACHE") == "/root/.npm" }
+    assert { container.envVariable("NODE_PATH") == "/usr/local/lib/node_modules" }
+    assert { container.mounts.contains("/root/.npm") or container.mounts.contains("/root/.npm/") }
+    assert { container.envVariable("PATH") == "/usr/local/bin:/custom/bin:/usr/bin:/bin:node_modules/.bin" }
+  }
+
+  """
+  Resolves the latest release when no version is supplied.
+  """
+  latest: Void @check {
+    let expected = (
+      JSON.decode(
+        Dagger.http("https://nodejs.org/dist/index.json").contents,
+      ) :: [NodeRelease!]!
+    )[0]!.version
+    let actual = Dagger
+      .nodeSetup
+      .container(Dagger.container.from("rust:1.98-trixie"))
+      .withExec(["node", "--version"])
+      .stdout
+      .trimSpace
+
+    assert { actual == expected }
+  }
+
+  """
+  Installs configured global npm packages.
+  """
+  packages: Void @check {
+    let version = Dagger
+      .nodeSetup(VERSION, packages: ["typescript@5.9.3"])
+      .container(debian)
+      .withExec(["tsc", "--version"])
+      .stdout
+      .trimSpace
+
+    assert { version == "Version 5.9.3" }
+  }
+
+  """
+  Preserves a custom npm cache path and NODE_PATH.
+  """
+  customEnvironment: Void @check {
+    let container = Dagger
+      .nodeSetup(VERSION)
+      .container(
+        debian
+          .withEnvVariable("NPM_CONFIG_CACHE", "/cache/npm")
+          .withEnvVariable("NODE_PATH", "/custom/node_modules"),
+      )
+
+    assert { container.envVariable("NPM_CONFIG_CACHE") == "/cache/npm" }
+    assert { container.mounts.contains("/cache/npm") or container.mounts.contains("/cache/npm/") }
+    assert { container.envVariable("NODE_PATH") == "/custom/node_modules:/usr/local/lib/node_modules" }
+  }
+
+  """
+  Applies through the shared overlay API.
+  """
+  overlay: Void @check {
+    let version = Dagger
+      .overlays
+      .combine([Dagger.nodeSetup(VERSION)])
+      .apply(debian)
+      .withExec(["node", "--version"])
+      .stdout
+      .trimSpace
+
+    assert { version == "v" + VERSION }
+  }
+
+  """
+  Downloads Node.js for the input container's platform.
+  """
+  arm64: Void @check {
+    let arch = Dagger
+      .nodeSetup(VERSION)
+      .container(Dagger.container(platform: "linux/arm64").from("debian:trixie-slim"))
+      .withExec(["node", "-p", "process.arch"])
+      .stdout
+      .trimSpace
+
+    assert { arch == "arm64" }
+  }
+}

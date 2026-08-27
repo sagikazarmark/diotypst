@@ -3,6 +3,12 @@ source = ".dagger/modules/rust-setup"
 
 settings.rustVersion = "1.98-trixie"
 
+[modules.node-setup]
+source = ".dagger/modules/node-setup"
+
+[modules.node-setup-tests]
+source = ".dagger/modules/node-setup/tests"
+
 [modules.rust]
 source = "github.com/sagikazarmark/daggerverse-beta/rust"
 check.skip = ["audit"]

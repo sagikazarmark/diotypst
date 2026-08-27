@@ -1,4 +1,6 @@
 [["version","2"]]
+["","container.from",["docker.io/library/debian:trixie-slim","linux/amd64"],"sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132"]
+["","container.from",["docker.io/library/debian:trixie-slim","linux/arm64"],"sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132"]
 ["","container.from",["docker.io/library/rust:1.98-trixie","linux/amd64"],"sha256:271849e998ffce5776454bbf98c5dc21baafc854ff8e566197908d3aca9a81e8"]
 ["","git.ref",["https://github.com/sagikazarmark/daggerverse-beta","HEAD"],{"ref":"refs/heads/main","sha":"e91d589bc8be066b45898f6c6f7fe638e771142c"}]
 ["","git.ref",["https://github.com/typst/typst-assets.git","refs/tags/v0.15.0"],{"ref":"refs/tags/v0.15.0","sha":"98ed175f2d168f7e42c8a39d20b738a50abe8385"}]
