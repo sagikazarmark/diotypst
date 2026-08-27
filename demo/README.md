@@ -57,7 +57,7 @@ PDF and Page Image Archive downloads.
 
 ## Prerequisites
 
-The root devenv shell supplies Rust 1.97, the `wasm32-unknown-unknown` target,
+The root devenv shell supplies Rust 1.98, the `wasm32-unknown-unknown` target,
 npm, Dagger, and a wasm-capable LLVM Clang. Install Dioxus CLI 0.7.9 separately;
 without devenv, install the other equivalent tools as well. Apple Clang cannot
 compile the `code!` highlighter for `wasm32-unknown-unknown`.
@@ -73,7 +73,7 @@ cargo install dioxus-cli --version 0.7.9 --locked
 ```sh
 cd demo
 npm ci
-dagger call fonts export --path ./public/fonts  # once, and after Typst upgrades
+dagger call assets fonts export --path ./public/fonts  # once, and after Typst upgrades
 npm run build                          # compile build/style.css
 dx serve --fullstack \
   @client --platform web --no-default-features --features web \
@@ -96,7 +96,7 @@ or Wrangler needed:
 ```sh
 cd demo
 dagger check                # release builds of BOTH the native fullstack app and the Worker
-dagger call service up      # native fullstack, tunnelled to a local port
+dagger call app service up  # native fullstack, tunnelled to a local port
 dagger call worker dev up   # Cloudflare Worker via `wrangler dev`
 ```
 

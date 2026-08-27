@@ -1,12 +1,42 @@
-[modules.demo]
-source = "."
-entrypoint = true
+[modules.rust-setup]
+source = ".dagger/modules/rust-setup"
 
-[modules.demo.settings]
-rustVersion = "1.97-trixie"
+settings.rustVersion = "1.98-trixie"
+
+[modules.rust]
+source = "github.com/sagikazarmark/daggerverse-beta/rust"
+check.skip = ["audit"]
+
+[modules.rust.settings]
+container = "rust-setup:container"
+
+[modules.worker-build]
+source = "github.com/sagikazarmark/daggerverse-beta/worker-build"
+
+[modules.worker-build.settings]
+container = "rust-setup:container"
+args = ["--no-default-features", "--features", "worker"]
+
+[modules.assets]
+source = "./.dagger/modules/assets"
+
+[modules.app]
+source = "./.dagger/modules/app"
+
+[modules.app.settings]
+rustContainer = "rust-setup:container"
+assets = "assets:as-container"
+worker = "worker-build:build-as-container"
+
+[modules.worker]
+source = "github.com/sagikazarmark/daggerverse-beta/worker"
+
+[modules.worker.settings]
+bundleAsContainer = "app:worker-bundle-as-container"
+config = "wrangler.toml"
 
 [modules.dagger-gha]
 source = "github.com/sagikazarmark/daggerverse-beta/dagger-gha"
 
 [modules.dagger-gha.settings]
-lock = '"PINNED"'
+daggerCommit = "3e485b3ed23dd5a57417a23fe0a9f01ec7858231"
