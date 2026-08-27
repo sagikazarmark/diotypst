@@ -458,7 +458,7 @@ The [demo](https://github.com/sagikazarmark/diotypst/tree/main/demo) is a Dioxus
 cd demo
 npm ci
 npm run build
-dagger call fonts export --path ./public/fonts
+dagger call assets fonts export --path ./public/fonts
 dx serve --fullstack \
   @client --platform web --no-default-features --features web \
   @server --platform server --no-default-features --features server

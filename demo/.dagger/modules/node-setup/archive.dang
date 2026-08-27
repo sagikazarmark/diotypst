@@ -1,0 +1,20 @@
+"""
+Extract an archive file into a directory.
+"""
+let extract(file: File!, stripComponents: Int = null): Directory! {
+  let args = ["bsdtar", "--no-xattrs", "-xf", file.name, "-C", "/work/out"]
+
+  if (stripComponents != null) {
+    args += ["--strip-components", toString(stripComponents)]
+  }
+
+  Dagger
+    .container
+    .from("alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b")
+    .withExec(["apk", "add", "libarchive-tools"])
+    .withWorkdir("/work/src")
+    .withExec(["mkdir", "-p", "/work/out"])
+    .withMountedFile(file.name, file)
+    .withExec(args)
+    .directory("/work/out")
+}

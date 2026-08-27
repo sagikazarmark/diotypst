@@ -1,0 +1,108 @@
+type NodeSetup implements OverlaysOverlay {
+  let version: String!
+  let cache: CacheVolume!
+  let packages: [String!]!
+
+  new(
+    """
+    Node.js version to install from https://nodejs.org/en/download/current.
+    """
+    version: String! = "latest",
+    """
+    Cache volume for npm's package cache.
+    """
+    cache: CacheVolume! = Dagger.cacheVolume("npm"),
+    """
+    Packages to install globally with npm.
+    """
+    packages: [String!]! = [],
+  ) {
+    self.version = version
+    self.cache = cache
+    self.packages = packages
+
+    self
+  }
+
+  """
+  Installs Node.js into a container.
+  """
+  container(container: Container!): Container! {
+    let nodePath = "/usr/local/lib/node_modules"
+
+    container
+      .withDirectory("/usr/local", nodeDistribution(self.version, container.platform))
+      .{
+        if (_.envVariable("NPM_CONFIG_CACHE") == null or _.envVariable("NPM_CONFIG_CACHE") == "") {
+          _.withEnvVariable("NPM_CONFIG_CACHE", "/root/.npm")
+        } else _
+      }
+      .withMountedCache("${NPM_CONFIG_CACHE}", self.cache, expand: true)
+      .{
+        if (_.envVariable("NODE_PATH") == null or _.envVariable("NODE_PATH") == "") {
+          _.withEnvVariable("NODE_PATH", nodePath)
+        } else {
+          _.withEnvVariable("NODE_PATH", "${NODE_PATH}:" + nodePath, expand: true)
+        }
+      }
+      .withEnvVariable("PATH", "/usr/local/bin:${PATH}:node_modules/.bin", expand: true)
+      .{
+        if (self.packages.isEmpty) {
+          _
+        } else {
+          _.withExec(["npm", "install", "-g"] + self.packages)
+        }
+      }
+  }
+
+  """
+  Implements the overlay interface.
+  """
+  apply(container: Container!): Container! {
+    self.container(container)
+  }
+}
+
+type NodeRelease {
+  version: String!
+}
+
+let nodeDistribution(version: String!, platform: Platform!): Directory! {
+  let version = resolveVersion(version)
+  let arch = case (platform) {
+    "linux/amd64" => "x64"
+    "linux/arm64" => "arm64"
+    "linux/ppc64le" => "ppc64le"
+    "linux/s390x" => "s390x"
+    else => raise "unsupported platform: " + toString(platform)
+  }
+  let fileName = `node-${version}-linux-${arch}.tar.xz`
+  let baseUrl = `https://nodejs.org/dist/${version}`
+  let checksumLine = Dagger
+    .http(baseUrl + "/SHASUMS256.txt")
+    .contents
+    .split("\n")
+    .find { _.hasSuffix("  " + fileName) }!
+  let checksum = checksumLine.split(" ")[0]!
+
+  extract(
+    Dagger.http(
+      `${baseUrl}/${fileName}`,
+      name: fileName,
+      checksum: "sha256:" + checksum,
+    ),
+    stripComponents: 1,
+  )
+}
+
+let resolveVersion(version: String!): String! {
+  if (version != "latest") {
+    return "v" + version.trimPrefix("v")
+  }
+
+  let releases = JSON.decode(
+    Dagger.http("https://nodejs.org/dist/index.json").contents,
+  ) :: [NodeRelease!]!
+
+  releases[0]!.version
+}

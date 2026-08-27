@@ -18,7 +18,7 @@ pub fn ServerRendering() -> Element {
             title: "server_render_download_router",
             intro: rsx! {
                 "Plain HTML forms post the source to the native server; no JavaScript is involved. Start the fullstack client/server command from the demo README or use "
-                InlineCode { "dagger call service up" }
+                InlineCode { "dagger call app service up" }
                 ". The Cloudflare Worker deployment serves the package proxy, not the render routes, so the buttons 404 there."
             },
             demo: rsx! { ServerDownloadExample {} },
