@@ -4,11 +4,27 @@ use crate::RenderDate;
 /// Decode `.typk` bytes with the raw typst-pack reader, so the assertions
 /// below check the archive itself rather than our own round-trip.
 fn decode_pack(bytes: &[u8]) -> typst_pack::Pack {
-    typst_pack::pack_archive::decode(
-        &typst_pack::PackArchiveBytes::from_vec(bytes.to_vec()),
-        typst_pack::pack_archive::DecodeLimits::reference_v1(),
+    typst_pack::archive::decode(bytes, typst_pack::archive::DecodeLimits::default())
+        .expect("raw pack should parse")
+}
+
+/// A `typst.toml` declaring `name` and `version`, which typst-pack requires
+/// of any package tree that carries one.
+fn package_manifest(name: &str, version: &str) -> Vec<u8> {
+    format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\nentrypoint = \"lib.typ\"\n")
+        .into_bytes()
+}
+
+fn cetz_bundle(lib: &[u8]) -> PackageBundle {
+    PackageBundle::builder(
+        "@preview/cetz:0.4.2"
+            .parse()
+            .expect("external spec should parse"),
     )
-    .expect("raw pack should parse")
+    .file("typst.toml", package_manifest("cetz", "0.4.2"))
+    .file("lib.typ", lib.to_vec())
+    .build()
+    .expect("cetz bundle should be valid")
 }
 
 fn sample_pack() -> ProjectPack {
@@ -26,24 +42,14 @@ fn sample_pack() -> ProjectPack {
             .parse()
             .expect("sample spec should parse"),
     )
-    .file("typst.toml", b"[package]".to_vec())
+    .file("typst.toml", package_manifest("badge", "0.1.0"))
     .file("lib.typ", b"#let badge(body) = body".to_vec())
     .build()
     .expect("sample bundle should be valid");
 
     ProjectPack::builder(project)
         .package_bundle(bundle)
-        .external_package_bundle(
-            PackageBundle::builder(
-                "@preview/cetz:0.4.2"
-                    .parse()
-                    .expect("external spec should parse"),
-            )
-            .file("typst.toml", b"[package]".to_vec())
-            .file("lib.typ", b"".to_vec())
-            .build()
-            .expect("external bundle should be valid"),
-        )
+        .external_package_bundle(cetz_bundle(b""))
         .metadata(
             ProjectPackMetadata::new()
                 .with_name("Sample")
@@ -62,11 +68,10 @@ fn project_pack_round_trips_through_typk_bytes() {
     let external = raw
         .package_requirements()
         .iter()
-        .find(|requirement| !requirement.is_embedded())
+        .find(|requirement| !requirement.embedded)
         .expect("external package requirement should be recorded");
-    assert_eq!(external.spec().to_string(), "@preview/cetz:0.4.2");
-    assert_eq!(external.file_count(), 2);
-    assert!(!raw.has_package(external.spec()));
+    assert_eq!(external.spec.to_string(), "@preview/cetz:0.4.2");
+    assert!(raw.packages().all(|(spec, _)| *spec != external.spec));
 
     let read = ProjectPack::from_bytes(&bytes).expect("pack should parse back");
 
@@ -86,6 +91,10 @@ fn project_pack_round_trips_through_typk_bytes() {
             .parse::<PackageSpec>()
             .expect("external spec should parse")]
     );
+    assert_eq!(
+        read.external_package_requirements()[0].tree_digest(),
+        *external.digest.as_bytes()
+    );
     let metadata = read.metadata().expect("metadata should survive");
     assert_eq!(metadata.name(), Some("Sample"));
     assert_eq!(metadata.authors(), ["Demo".to_owned()]);
@@ -102,6 +111,7 @@ fn project_pack_embeds_and_restores_font_files() {
         .expect("bundled fonts should not be empty")
         .to_vec();
     let pack = ProjectPack::builder(Project::from_source("Hello"))
+        .font_file(font.clone())
         .font_file(font.clone())
         .build()
         .expect("pack with a font should build");
@@ -124,22 +134,14 @@ fn project_pack_render_environment_installs_vendored_bundles() {
         .expect("vendored bundle should be installed");
     assert_eq!(
         bundle.file_bytes("typst.toml"),
-        Some(b"[package]".as_slice())
+        Some(package_manifest("badge", "0.1.0").as_slice())
     );
 }
 
 #[test]
 fn project_pack_verifies_exact_external_package_trees() {
     let pack = sample_pack();
-    let matching = PackageBundle::builder(
-        "@preview/cetz:0.4.2"
-            .parse()
-            .expect("external spec should parse"),
-    )
-    .file("typst.toml", b"[package]".to_vec())
-    .file("lib.typ", b"".to_vec())
-    .build()
-    .expect("matching bundle should build");
+    let matching = cetz_bundle(b"");
     assert!(matches!(
         pack.render_environment(),
         Err(ProjectPackError::MissingExternalPackage { .. })
@@ -191,20 +193,11 @@ fn project_pack_verifies_exact_external_package_trees() {
         Err(ProjectPackError::UnexpectedExternalPackage { .. })
     ));
 
-    let mismatched = PackageBundle::builder(
-        "@preview/cetz:0.4.2"
-            .parse()
-            .expect("external spec should parse"),
-    )
-    .file("typst.toml", b"[package]".to_vec())
-    .file("lib.typ", b"changed".to_vec())
-    .build()
-    .expect("mismatched bundle should build");
     let mismatched_environment = pack
         .preparation_environment()
         .expect("base environment should build")
         .to_builder()
-        .package_bundle(mismatched)
+        .package_bundle(cetz_bundle(b"changed"))
         .build()
         .expect("mismatched environment should build");
     assert_eq!(
@@ -239,19 +232,28 @@ fn project_pack_fulfills_external_fonts_from_a_base_environment() {
         .expect("bundled fonts should contain a third font")
         .to_vec();
     let pack = ProjectPack::builder(Project::from_source("Hello"))
-        .external_font_face(external_font.clone(), 0)
-        .font_face(embedded_font.clone(), 0)
+        .external_font_file(external_font.clone())
+        .font_file(embedded_font.clone())
         .build()
         .expect("pack with an external font should build");
 
     assert_eq!(pack.external_font_requirements().len(), 1);
+    let requirement = &pack.external_font_requirements()[0];
+    assert_eq!(
+        requirement.container_digest(),
+        *typst_pack::Digest::of(&external_font).as_bytes()
+    );
+    assert_eq!(requirement.face_indices(), [0]);
     let raw = decode_pack(&pack.to_bytes().expect("pack should serialize"));
-    assert!(!raw.font_catalog()[0].is_embedded());
-    assert!(raw.font_catalog()[1].is_embedded());
-    assert!(matches!(
+    assert!(!raw.font_requirements()[0].embedded);
+    assert!(raw.font_requirements()[1].embedded);
+    assert_eq!(
         pack.render_environment(),
-        Err(ProjectPackError::MissingExternalFont { .. })
-    ));
+        Err(ProjectPackError::MissingExternalFont {
+            container_digest: requirement.container_digest(),
+            families: requirement.families().to_vec(),
+        })
+    );
 
     let base = RenderEnvironment::builder()
         .font_set(FontSet::from_font_files([
@@ -320,18 +322,32 @@ fn project_pack_builder_rejects_unrecognized_fonts_and_duplicate_packages() {
 }
 
 #[test]
+fn project_pack_builder_rejects_a_package_manifest_naming_another_package() {
+    let mislabeled =
+        PackageBundle::builder("@demo/badge:0.1.0".parse().expect("spec should parse"))
+            .file("typst.toml", package_manifest("other", "0.1.0"))
+            .file("lib.typ", b"".to_vec())
+            .build()
+            .expect("bundle should build");
+
+    assert!(matches!(
+        ProjectPack::builder(Project::from_source("Hello"))
+            .package_bundle(mislabeled)
+            .build(),
+        Err(ProjectPackError::Archive { .. })
+    ));
+}
+
+#[test]
 fn project_pack_reads_archives_written_by_typst_pack_directly() {
     // Interop guard: a pack assembled with the raw typst-pack builder,
     // not just our own writer, converts into crate domain types.
-    let pack = typst_pack::pack_archive::encode(
+    let pack = typst_pack::archive::encode(
         &typst_pack::Pack::builder("main.typ")
             .file("main.typ", b"Hello".to_vec())
-            .expect("file should be valid")
             .build()
             .expect("raw pack should build"),
-    )
-    .expect("raw pack should serialize")
-    .into_vec();
+    );
 
     let read = ProjectPack::from_bytes(&pack).expect("raw pack should parse");
 
@@ -342,23 +358,19 @@ fn project_pack_reads_archives_written_by_typst_pack_directly() {
     );
 }
 
-/// A golden version-1 `.typk` archive, written by typst-pack 0.4.0.
+/// A golden format-version-2 `.typk` archive, written by typst-pack 0.6.0.
 ///
 /// This pins the decoder against a fixed archive rather than against whatever
 /// the current encoder happens to emit, so a format-level regression in any
-/// future typst-pack upgrade fails here.
-///
-/// It is not, by itself, evidence of backward compatibility: 0.5's encoder
-/// reproduces these exact bytes, because every construct in the fixture is
-/// encoded identically by both releases. The one construct that would differ
-/// is an embedded font, which 0.4 stored at `fonts/<family-slug>.<ext>` and
-/// 0.5 stores at `fonts/<hex-digest>.<ext>`. Covering that path needs a
-/// font-bearing fixture, and the smallest bundled font is ~250 KB.
-const LEGACY_PACK: &[u8] = include_bytes!("testdata/typst-pack-0.4.0.typk");
+/// future typst-pack upgrade fails here. It carries one embedded package, one
+/// external package, and one external font container (Libertinus Serif from
+/// `typst-assets`), so the recorded package-tree and font-container digests
+/// are also checked against what this crate computes for the same resources.
+const GOLDEN_PACK: &[u8] = include_bytes!("testdata/typst-pack-0.6.0.typk");
 
 #[test]
-fn a_golden_version_1_archive_still_reads() {
-    let pack = ProjectPack::from_bytes(LEGACY_PACK).expect("a version-1 archive should read");
+fn a_golden_version_2_archive_still_reads() {
+    let pack = ProjectPack::from_bytes(GOLDEN_PACK).expect("a version-2 archive should read");
 
     assert_eq!(pack.project().root_path().get_without_slash(), "main.typ");
     assert_eq!(
@@ -377,26 +389,49 @@ fn a_golden_version_1_archive_still_reads() {
     let external = pack.external_package_requirements();
     assert_eq!(external.len(), 1);
     assert_eq!(external[0].spec().to_string(), "@preview/cetz:0.4.2");
-    assert_eq!(external[0].file_count(), 2);
+
+    let fonts = pack.external_font_requirements();
+    assert_eq!(fonts.len(), 1);
+    assert_eq!(fonts[0].families(), ["Libertinus Serif"]);
+    assert_eq!(fonts[0].face_indices(), [0]);
+    assert!(pack.font_files().is_empty());
 
     let metadata = pack.metadata().expect("the archive carries metadata");
-    assert_eq!(metadata.name(), Some("Legacy fixture"));
+    assert_eq!(metadata.name(), Some("Golden fixture"));
     assert_eq!(metadata.authors(), ["diotypst"]);
+
+    assert_eq!(
+        pack.to_bytes().expect("a read pack should serialize"),
+        GOLDEN_PACK
+    );
 }
 
 #[test]
-fn the_font_container_digest_survived_the_typst_pack_rewrite() {
-    // 0.4.0 computed this with `FontContainerIdentity::from_bytes`, which 0.5
-    // replaced with `CanonicalIdentity::for_font_container_bytes`. A changed
-    // digest would silently invalidate every font requirement in an existing
-    // pack, so the value is pinned rather than recomputed.
-    const SAMPLE: &[u8] = b"diotypst font container fixture";
-    const DIGEST_FROM_0_4_0: [u8; 16] = [
-        151, 187, 175, 218, 114, 58, 14, 58, 233, 50, 63, 102, 155, 208, 209, 184,
-    ];
+fn the_golden_archive_digests_match_resources_computed_today() {
+    // A changed package-tree or font-container digest would silently
+    // invalidate every external requirement in an existing pack, so the
+    // resources the golden archive was written from must still fulfill it.
+    let pack = ProjectPack::from_bytes(GOLDEN_PACK).expect("a version-2 archive should read");
+    let font = typst_assets::fonts()
+        .next()
+        .expect("bundled fonts should not be empty")
+        .to_vec();
+
+    let environment = pack
+        .environment_builder()
+        .package_bundle(cetz_bundle(b""))
+        .font_file(font.clone())
+        .build()
+        .expect("the original resources should fulfill the golden pack");
 
     assert_eq!(
-        typst_pack::CanonicalIdentity::for_font_container_bytes(SAMPLE).digest(),
-        DIGEST_FROM_0_4_0
+        environment
+            .font_set()
+            .font_store()
+            .font(0)
+            .expect("the external font should be installed")
+            .data()
+            .as_slice(),
+        font
     );
 }

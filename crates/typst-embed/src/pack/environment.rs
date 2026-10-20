@@ -1,6 +1,6 @@
 use super::ProjectPack;
 use super::error::ProjectPackError;
-use super::requirements::verify_external_package_requirements;
+use super::requirements::{font_container_digest, verify_external_package_requirements};
 use crate::{FontSet, PackageBundle, PackageBundleSet, RenderDate, RenderEnvironment};
 use typst::foundations::{Dict, IntoValue};
 
@@ -65,12 +65,11 @@ impl<'a> ProjectPackEnvironmentBuilder<'a> {
             .iter()
             .map(|requirement| requirement.container_digest())
             .collect::<std::collections::HashSet<_>>();
-        self.font_files
-            .extend(environment.font_set().container_files_where(|data| {
-                required_fonts.contains(
-                    &typst_pack::CanonicalIdentity::for_font_container_bytes(data).digest(),
-                )
-            }));
+        self.font_files.extend(
+            environment.font_set().container_files_where(|data| {
+                required_fonts.contains(&font_container_digest(data))
+            }),
+        );
         self
     }
 
@@ -134,31 +133,20 @@ impl<'a> ProjectPackEnvironmentBuilder<'a> {
 
         let containers = self.pack.font_containers(&self.font_files);
         for requirement in &self.pack.external_font_requirements {
-            let Some(data) = containers.get(&requirement.container_digest()) else {
+            if !containers.contains_key(&requirement.container_digest()) {
                 return Err(ProjectPackError::MissingExternalFont {
                     container_digest: requirement.container_digest(),
-                });
-            };
-            if data.len() as u64 != requirement.container_length() {
-                return Err(ProjectPackError::MismatchedExternalFont {
-                    container_digest: requirement.container_digest(),
+                    families: requirement.families().to_vec(),
                 });
             }
         }
-        let mut faces = Vec::new();
-        for face in &self.pack.font_catalog {
-            let data = containers.get(&face.container_digest).ok_or_else(|| {
-                ProjectPackError::MissingExternalFont {
-                    container_digest: face.container_digest,
-                }
-            })?;
-            if typst::text::FontInfo::new(data, face.index).is_none() {
-                return Err(ProjectPackError::MismatchedExternalFont {
-                    container_digest: face.container_digest,
-                });
-            }
-            faces.push((data.clone(), face.index));
-        }
+        // Every required container is now present, embedded or supplied, so
+        // the Font Set holds exactly the pack's containers in its font order.
+        let font_files = self
+            .pack
+            .fonts
+            .iter()
+            .filter_map(|font| containers.get(&font.digest).cloned());
 
         RenderEnvironment::builder()
             .package_bundles(
@@ -169,7 +157,7 @@ impl<'a> ProjectPackEnvironmentBuilder<'a> {
                     .cloned()
                     .chain(supplied_packages.bundles().iter().cloned()),
             )
-            .font_set(FontSet::from_font_faces(faces))
+            .font_set(FontSet::from_font_files(font_files))
             .render_date(self.render_date)
             .inputs(self.inputs)
             .build()

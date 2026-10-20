@@ -49,7 +49,7 @@ typst = { workspace = true }
 typst-html = { workspace = true, optional = true }
 typst-kit = { workspace = true }
 typst-layout = { workspace = true, optional = true }
-typst-pack = { version = "0.5.0", default-features = false, optional = true }
+typst-pack = { version = "0.6.0", default-features = false, optional = true }
 typst-pdf = { workspace = true, optional = true }
 typst-render = { workspace = true, optional = true }
 
