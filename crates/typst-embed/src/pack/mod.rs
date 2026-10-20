@@ -17,7 +17,7 @@ use crate::{
     FontSet, PackageBundle, PackageBundleSet, PackageSpec, Project, RenderEnvironment,
     RenderEnvironmentError,
 };
-use requirements::verify_external_package_requirements;
+use requirements::{font_container_digest, verify_external_package_requirements};
 
 /// The conventional file extension for Project Pack archives.
 pub const PROJECT_PACK_EXTENSION: &str = typst_pack::FILE_EXTENSION;
@@ -26,8 +26,9 @@ pub const PROJECT_PACK_EXTENSION: &str = typst_pack::FILE_EXTENSION;
 ///
 /// A Project Pack carries everything needed to render offline: the Typst
 /// Project itself, vendored Package Bundles, exact external package-tree
-/// requirements that must still be fulfilled, and optional embedded font
-/// files for the Font Set. The archive format is defined by the independent
+/// requirements that must still be fulfilled, and the font containers of its
+/// Font Set, each either embedded or required externally by digest. The
+/// archive format is defined by the independent
 /// [`typst-pack`](https://github.com/sagikazarmark/typst-pack) crate; this
 /// type converts packs to and from this crate's domain types.
 #[derive(Clone, Debug)]
@@ -37,10 +38,10 @@ pub struct ProjectPack {
     external_packages: Vec<PackageSpec>,
     external_package_requirements: Vec<ExternalPackageRequirement>,
     external_package_bundles: Vec<PackageBundle>,
-    font_catalog: Vec<ProjectPackFontFace>,
+    fonts: Vec<ProjectPackFont>,
     external_font_requirements: Vec<ExternalFontRequirement>,
     font_files: Vec<Vec<u8>>,
-    builder_font_faces: Vec<ProjectPackBuilderFontFace>,
+    builder_fonts: Vec<ProjectPackBuilderFont>,
     metadata: Option<ProjectPackMetadata>,
     source_bytes: Option<Vec<u8>>,
 }
@@ -51,7 +52,7 @@ impl PartialEq for ProjectPack {
             && self.package_bundles == other.package_bundles
             && self.external_packages == other.external_packages
             && self.external_package_requirements == other.external_package_requirements
-            && self.font_catalog == other.font_catalog
+            && self.fonts == other.fonts
             && self.external_font_requirements == other.external_font_requirements
             && self.font_files == other.font_files
             && self.metadata == other.metadata
@@ -68,10 +69,11 @@ impl ProjectPack {
 
     /// Parse a `.typk` archive into a Project Pack.
     ///
-    /// Reading is bounded by typst-pack's reference version-1 ceilings: at most
-    /// 512 MB of archive, 100,000 members, and 2 GB of total expanded content.
-    /// A pack that exceeds any of them is rejected as
-    /// [`ProjectPackError::Archive`] rather than expanded.
+    /// Reading is bounded by typst-pack's default decode limits: at most
+    /// 512 MiB of archive, 100,000 members, 256 MiB per expanded member, and
+    /// 2 GiB of total expanded content. A pack that exceeds any of them is
+    /// rejected as [`ProjectPackError::Archive`] rather than expanded. Every
+    /// member is verified against the SHA-256 digest its manifest declares.
     ///
     /// Those ceilings are generous for an untrusted upload, and expanded
     /// content is what a decompression bomb inflates. Callers accepting packs
@@ -79,31 +81,8 @@ impl ProjectPack {
     /// the archive alone does not bound expansion.
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self, ProjectPackError> {
         let bytes = bytes.as_ref();
-        let limits = typst_pack::pack_archive::DecodeLimits::reference_v1();
-
-        // Refuse an oversized archive against the borrowed input, before it is
-        // copied. The decoder enforces the same ceiling, but only once it owns
-        // the bytes, so checking here keeps a rejected archive from being
-        // buffered in full first.
-        if bytes.len() as u64 > limits.archive_bytes() {
-            return Err(ProjectPackError::Archive {
-                message: format!(
-                    "the archive is {} bytes, exceeding the {}-byte limit",
-                    bytes.len(),
-                    limits.archive_bytes()
-                ),
-            });
-        }
-
-        // The decoder borrows the archive, so its bytes are reclaimed
-        // afterwards for `to_bytes` rather than copied a second time.
-        let archive = typst_pack::PackArchiveBytes::from_vec(bytes.to_vec());
-        let pack = typst_pack::pack_archive::decode(&archive, limits).map_err(|error| {
-            ProjectPackError::Archive {
-                message: error.to_string(),
-            }
-        })?;
-        let source_bytes = archive.into_vec();
+        let pack = typst_pack::archive::decode(bytes, typst_pack::archive::DecodeLimits::default())
+            .map_err(|error| archive_error(&error))?;
 
         let mut project = Project::builder(pack.entrypoint());
         for (path, data) in pack.files() {
@@ -112,9 +91,9 @@ impl ProjectPack {
         let project = project.build().map_err(ProjectPackError::Project)?;
 
         let mut package_bundles = PackageBundleSet::new();
-        for (spec, files) in pack.packages() {
+        for (spec, tree) in pack.packages() {
             let mut bundle = PackageBundle::builder(spec.clone());
-            for (path, data) in files {
+            for (path, data) in tree.files() {
                 bundle = bundle.file(path, data);
             }
             let bundle = bundle.build().map_err(|error| ProjectPackError::Package {
@@ -131,13 +110,11 @@ impl ProjectPack {
         let external_package_requirements = pack
             .package_requirements()
             .iter()
-            .filter(|requirement| !requirement.is_embedded())
+            .filter(|requirement| !requirement.embedded)
             .map(|requirement| {
                 ExternalPackageRequirement::new(
-                    requirement.spec().clone(),
-                    requirement.tree_identity().digest(),
-                    requirement.file_count(),
-                    requirement.byte_length(),
+                    requirement.spec.clone(),
+                    *requirement.digest.as_bytes(),
                 )
             })
             .collect::<Vec<_>>();
@@ -146,47 +123,49 @@ impl ProjectPack {
             .map(|requirement| requirement.spec().clone())
             .collect();
 
-        let external_font_requirements = pack
-            .font_requirements()
-            .iter()
-            .filter(|requirement| !requirement.is_embedded())
-            .map(|requirement| {
-                ExternalFontRequirement::new(
-                    requirement.container_identity().digest(),
-                    requirement.container_length(),
-                    requirement.face_indices().to_vec(),
-                )
-            })
-            .collect();
-        let font_catalog = pack
-            .font_catalog()
-            .iter()
-            .map(|face| ProjectPackFontFace {
-                container_digest: face.identity().container().digest(),
-                index: face.identity().index(),
-                embedded: face.is_embedded(),
-            })
-            .collect();
-
-        let mut font_containers = std::collections::HashSet::new();
+        let mut fonts = Vec::new();
         let mut font_files = Vec::new();
-        for font in pack.fonts() {
-            let digest =
-                typst_pack::CanonicalIdentity::for_font_container_bytes(font.data()).digest();
-            if font_containers.insert(digest) {
-                font_files.push(font.data().to_vec());
+        let mut external_font_requirements = Vec::new();
+        for requirement in pack.font_requirements() {
+            let digest = *requirement.digest.as_bytes();
+            fonts.push(ProjectPackFont {
+                digest,
+                embedded: requirement.embedded,
+            });
+            if requirement.embedded {
+                let data = pack.font_data(&requirement.digest).ok_or_else(|| {
+                    ProjectPackError::Archive {
+                        message: format!(
+                            "embedded font container {} is missing from the pack",
+                            requirement.digest
+                        ),
+                    }
+                })?;
+                font_files.push(data.to_vec());
+            } else {
+                let mut families = Vec::<String>::new();
+                for face in &requirement.faces {
+                    if !families.contains(&face.family) {
+                        families.push(face.family.clone());
+                    }
+                }
+                external_font_requirements.push(ExternalFontRequirement::new(
+                    digest,
+                    families,
+                    requirement.faces.iter().map(|face| face.index).collect(),
+                ));
             }
         }
 
         let metadata = pack.metadata().map(|metadata| {
             let mut converted = ProjectPackMetadata::new();
-            if let Some(name) = metadata.name() {
+            if let Some(name) = &metadata.name {
                 converted = converted.with_name(name);
             }
-            if let Some(description) = metadata.description() {
+            if let Some(description) = &metadata.description {
                 converted = converted.with_description(description);
             }
-            for author in metadata.authors() {
+            for author in &metadata.authors {
                 converted = converted.with_author(author);
             }
             converted
@@ -198,76 +177,60 @@ impl ProjectPack {
             external_packages,
             external_package_requirements,
             external_package_bundles: Vec::new(),
-            font_catalog,
+            fonts,
             external_font_requirements,
             font_files,
-            builder_font_faces: Vec::new(),
+            builder_fonts: Vec::new(),
             metadata,
-            source_bytes: Some(source_bytes),
+            source_bytes: Some(bytes.to_vec()),
         })
     }
 
     /// Serialize this Project Pack into `.typk` archive bytes.
+    ///
+    /// A pack read with [`ProjectPack::from_bytes`] serializes to exactly the
+    /// bytes it was read from.
     pub fn to_bytes(&self) -> Result<Vec<u8>, ProjectPackError> {
         if let Some(bytes) = &self.source_bytes {
             return Ok(bytes.clone());
         }
 
-        let archive_error = |error: &dyn std::fmt::Display| ProjectPackError::Archive {
-            message: error.to_string(),
-        };
-
         let mut pack = typst_pack::Pack::builder(self.project.root_path().get_without_slash());
         for file in self.project.files() {
-            pack = pack
-                .file(file.path().get_without_slash(), file.bytes())
-                .map_err(|error| archive_error(&error))?;
+            pack = pack.file(file.path().get_without_slash(), file.bytes());
         }
 
         for bundle in self.package_bundles.bundles() {
             for (path, data) in bundle.files() {
-                pack = pack
-                    .package_file(bundle.spec().clone(), path, data)
-                    .map_err(|error| archive_error(&error))?;
+                pack = pack.package_file(bundle.spec().clone(), path, data);
             }
         }
 
         for bundle in &self.external_package_bundles {
             for (path, data) in bundle.files() {
-                pack = pack
-                    .external_package_file(bundle.spec().clone(), path, data)
-                    .map_err(|error| archive_error(&error))?;
+                pack = pack.external_package_file(bundle.spec().clone(), path, data);
             }
         }
 
-        for face in &self.builder_font_faces {
-            pack = if face.embedded {
-                pack.font(face.data.clone(), face.index)
+        for font in &self.builder_fonts {
+            pack = if font.embedded {
+                pack.font(font.data.clone())
             } else {
-                pack.external_font(face.data.clone(), face.index)
-            }
-            .map_err(|error| archive_error(&error))?;
+                pack.external_font(font.data.clone())
+            };
         }
 
         if let Some(metadata) = &self.metadata {
-            let mut converted = typst_pack::PackMetadata::new();
-            if let Some(name) = metadata.name() {
-                converted = converted.with_name(name);
-            }
-            if let Some(description) = metadata.description() {
-                converted = converted.with_description(description);
-            }
-            for author in metadata.authors() {
-                converted = converted.with_author(author);
-            }
-            pack = pack.metadata(converted);
+            pack = pack.metadata(typst_pack::Metadata {
+                name: metadata.name().map(ToOwned::to_owned),
+                description: metadata.description().map(ToOwned::to_owned),
+                authors: metadata.authors().to_vec(),
+            });
         }
 
         let pack = pack.build().map_err(|error| archive_error(&error))?;
 
-        typst_pack::pack_archive::encode(&pack)
-            .map(typst_pack::PackArchiveBytes::into_vec)
-            .map_err(|error| archive_error(&error))
+        Ok(typst_pack::archive::encode(&pack))
     }
 
     /// Return the packed Typst Project.
@@ -302,7 +265,7 @@ impl ProjectPack {
         })
     }
 
-    /// Return the embedded font files.
+    /// Return the embedded font containers, in the pack's font order.
     pub fn font_files(&self) -> &[Vec<u8>] {
         &self.font_files
     }
@@ -319,13 +282,7 @@ impl ProjectPack {
 
     /// Return the embedded portion of this pack's exact Font Set.
     pub fn font_set(&self) -> FontSet {
-        let containers = self.font_containers(std::iter::empty::<&Vec<u8>>());
-        FontSet::from_font_faces(
-            self.font_catalog
-                .iter()
-                .filter(|face| face.embedded)
-                .map(|face| (containers[&face.container_digest].clone(), face.index)),
-        )
+        FontSet::from_font_files(self.font_files.iter().cloned())
     }
 
     /// Start building a render environment from this pack.
@@ -371,36 +328,39 @@ impl ProjectPack {
     }
 
     fn font_containers<'a>(
-        &self,
+        &'a self,
         external: impl IntoIterator<Item = &'a Vec<u8>>,
-    ) -> std::collections::HashMap<[u8; 16], Vec<u8>> {
-        let mut containers = std::collections::HashMap::new();
-        for data in &self.font_files {
-            containers.insert(
-                typst_pack::CanonicalIdentity::for_font_container_bytes(data).digest(),
-                data.clone(),
-            );
-        }
-        for data in external {
-            containers.insert(
-                typst_pack::CanonicalIdentity::for_font_container_bytes(data).digest(),
-                data.clone(),
-            );
-        }
-        containers
+    ) -> std::collections::HashMap<[u8; 32], Vec<u8>> {
+        self.font_files
+            .iter()
+            .chain(external)
+            .map(|data| (font_container_digest(data), data.clone()))
+            .collect()
     }
 }
 
+/// Report a typst-pack error with its whole `source()` chain, since typst-pack
+/// errors do not repeat their causes in their own messages.
+fn archive_error(error: &dyn std::error::Error) -> ProjectPackError {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        message.push_str(": ");
+        message.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    ProjectPackError::Archive { message }
+}
+
+/// One font container of a pack, in the pack's font order.
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct ProjectPackFontFace {
-    container_digest: [u8; 16],
-    index: u32,
+struct ProjectPackFont {
+    digest: [u8; 32],
     embedded: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct ProjectPackBuilderFontFace {
+struct ProjectPackBuilderFont {
     data: Vec<u8>,
-    index: u32,
     embedded: bool,
 }

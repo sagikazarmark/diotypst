@@ -1,7 +1,7 @@
 use super::error::ProjectPackError;
 use super::metadata::ProjectPackMetadata;
-use super::requirements::external_package_requirement;
-use super::{ProjectPack, ProjectPackBuilderFontFace};
+use super::requirements::package_tree_digest;
+use super::{ProjectPack, ProjectPackBuilderFont};
 use crate::{PackageBundle, PackageBundleSet, Project};
 
 /// Builder for a [`ProjectPack`].
@@ -10,7 +10,7 @@ pub struct ProjectPackBuilder {
     project: Project,
     package_bundles: Vec<PackageBundle>,
     external_package_bundles: Vec<PackageBundle>,
-    font_faces: Vec<ProjectPackBuilderFontFace>,
+    fonts: Vec<ProjectPackBuilderFont>,
     invalid_font: bool,
     metadata: Option<ProjectPackMetadata>,
 }
@@ -21,7 +21,7 @@ impl ProjectPackBuilder {
             project,
             package_bundles: Vec::new(),
             external_package_bundles: Vec::new(),
-            font_faces: Vec::new(),
+            fonts: Vec::new(),
             invalid_font: false,
             metadata: None,
         }
@@ -49,28 +49,23 @@ impl ProjectPackBuilder {
         self
     }
 
-    /// Embed a font file; collections contribute every face.
-    pub fn font_file(mut self, bytes: impl Into<Vec<u8>>) -> Self {
-        self = self.font_container(bytes.into(), true);
-        self
+    /// Embed a font container (a font file or collection) at this position in
+    /// the pack's font order; every face it holds becomes available.
+    ///
+    /// A container already added to the builder keeps its first position and
+    /// disposition.
+    pub fn font_file(self, bytes: impl Into<Vec<u8>>) -> Self {
+        self.font_container(bytes.into(), true)
     }
 
-    /// Record a complete font container as external without embedding its bytes.
-    pub fn external_font_file(mut self, bytes: impl Into<Vec<u8>>) -> Self {
-        self = self.font_container(bytes.into(), false);
-        self
-    }
-
-    /// Embed one face from a font container at this position in the Font Catalog.
-    pub fn font_face(mut self, bytes: impl Into<Vec<u8>>, index: u32) -> Self {
-        self = self.push_font_face(bytes.into(), index, true);
-        self
-    }
-
-    /// Record one external face at this position in the Font Catalog.
-    pub fn external_font_face(mut self, bytes: impl Into<Vec<u8>>, index: u32) -> Self {
-        self = self.push_font_face(bytes.into(), index, false);
-        self
+    /// Record a complete font container as external, at this position in the
+    /// pack's font order, without embedding its bytes.
+    ///
+    /// The bytes provide the exact container identity required by the pack
+    /// format. A container already added to the builder keeps its first
+    /// position and disposition.
+    pub fn external_font_file(self, bytes: impl Into<Vec<u8>>) -> Self {
+        self.font_container(bytes.into(), false)
     }
 
     /// Attach descriptive metadata to the pack.
@@ -102,7 +97,7 @@ impl ProjectPackBuilder {
                     spec: bundle.spec().clone(),
                 });
             }
-            external_package_requirement(bundle)?;
+            package_tree_digest(bundle)?;
         }
 
         if self.invalid_font {
@@ -119,10 +114,10 @@ impl ProjectPackBuilder {
                 .collect(),
             external_package_requirements: Vec::new(),
             external_package_bundles: external_package_bundles.bundles().to_vec(),
-            font_catalog: Vec::new(),
+            fonts: Vec::new(),
             external_font_requirements: Vec::new(),
             font_files: Vec::new(),
-            builder_font_faces: self.font_faces,
+            builder_fonts: self.fonts,
             metadata: self.metadata,
             source_bytes: None,
         };
@@ -131,32 +126,11 @@ impl ProjectPackBuilder {
         ProjectPack::from_bytes(bytes)
     }
 
-    fn font_container(mut self, bytes: Vec<u8>, embedded: bool) -> Self {
-        let indices = (0..)
-            .take_while(|index| typst::text::FontInfo::new(&bytes, *index).is_some())
-            .collect::<Vec<_>>();
-        if indices.is_empty() {
+    fn font_container(mut self, data: Vec<u8>, embedded: bool) -> Self {
+        if typst::text::FontInfo::iter(&data).next().is_none() {
             self.invalid_font = true;
-        }
-        for index in indices {
-            self.font_faces.push(ProjectPackBuilderFontFace {
-                data: bytes.clone(),
-                index,
-                embedded,
-            });
-        }
-        self
-    }
-
-    fn push_font_face(mut self, bytes: Vec<u8>, index: u32, embedded: bool) -> Self {
-        if typst::text::FontInfo::new(&bytes, index).is_none() {
-            self.invalid_font = true;
-        } else {
-            self.font_faces.push(ProjectPackBuilderFontFace {
-                data: bytes,
-                index,
-                embedded,
-            });
+        } else if !self.fonts.iter().any(|font| font.data == data) {
+            self.fonts.push(ProjectPackBuilderFont { data, embedded });
         }
         self
     }

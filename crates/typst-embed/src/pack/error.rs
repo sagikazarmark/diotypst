@@ -32,8 +32,8 @@ pub enum ProjectPackError {
         spec: PackageSpec,
     },
 
-    /// An embedded font file could not be parsed as a font.
-    #[error("an embedded font file could not be parsed as a font")]
+    /// A font file could not be parsed as a font.
+    #[error("a font file could not be parsed as a font")]
     UnrecognizedFont,
 
     /// An external Package Bundle contains no files and cannot establish a tree identity.
@@ -65,17 +65,15 @@ pub enum ProjectPackError {
     },
 
     /// An exact external font container is unavailable.
-    #[error("an external font container required by the pack is unavailable")]
+    #[error(
+        "the pack requires an external font container ({}), which is unavailable",
+        families.join(", ")
+    )]
     MissingExternalFont {
-        /// The canonical digest of the required font container.
-        container_digest: [u8; 16],
-    },
-
-    /// A supplied font container does not match the pack's exact requirement.
-    #[error("a supplied font container does not match the pack's exact requirement")]
-    MismatchedExternalFont {
-        /// The canonical digest of the required font container.
-        container_digest: [u8; 16],
+        /// The SHA-256 digest of the required font container.
+        container_digest: [u8; 32],
+        /// The family names of the required container's faces.
+        families: Vec<String>,
     },
 
     /// The pack's Render Environment could not be built.

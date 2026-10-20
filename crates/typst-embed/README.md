@@ -56,9 +56,10 @@ the file store without rebuilding prepared environment resources.
   small amount of C and assembly through `cc`, so a C compiler is still required. Pick
   one downloader or the other; enabling `system-downloader` anywhere in the build brings
   OpenSSL back through Cargo feature unification.
-- `pack` (wasm-safe): read and write portable `.typk` Project Pack archives. Reads are
-  bounded by typst-pack's reference version-1 ceilings (512 MB archive, 100,000 members,
-  2 GB expanded content); bound untrusted input yourself before reading it.
+- `pack` (wasm-safe): read and write portable `.typk` Project Pack archives (pack format
+  version 2, typst-pack 0.6). Reads are bounded by typst-pack's default decode limits
+  (512 MiB archive, 100,000 members, 256 MiB per member, 2 GiB expanded content); bound
+  untrusted input yourself before reading it.
 - `vendor` (native): pre-download verbatim package archives for embedding.
 - `lazy-packages`: opt-in synchronous mid-render package resolution. Off by default: it
   lets a native Project World reach a Package Source during Typst world lookup, which
@@ -168,8 +169,12 @@ the Render Date and System Inputs; undeclared ambient resources do not enter the
 
 `ProjectPack::environment_builder` is the extensible path for supplying Package Bundles, font
 containers, or Render Context separately. `ProjectPackBuilder::external_package_bundle` and
-`ProjectPackBuilder::external_font_file` inspect complete resources to establish their identities
-without storing their bytes in the archive.
+`ProjectPackBuilder::external_font_file` inspect complete resources to establish their SHA-256
+identities without storing their bytes in the archive. Fonts are packed and required as whole
+containers: every face of a packed font file or collection is available to the document.
+
+Packs use format version 2. Archives written by typst-pack 0.5 or earlier (format version 1) are
+rejected rather than migrated; recreate them from their Typst Projects.
 
 ## Overlays
 

@@ -5,24 +5,12 @@ use crate::{PackageBundle, PackageSpec};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExternalPackageRequirement {
     spec: PackageSpec,
-    tree_digest: [u8; 16],
-    file_count: u64,
-    byte_length: u64,
+    tree_digest: [u8; 32],
 }
 
 impl ExternalPackageRequirement {
-    pub(super) fn new(
-        spec: PackageSpec,
-        tree_digest: [u8; 16],
-        file_count: u64,
-        byte_length: u64,
-    ) -> Self {
-        Self {
-            spec,
-            tree_digest,
-            file_count,
-            byte_length,
-        }
+    pub(super) fn new(spec: PackageSpec, tree_digest: [u8; 32]) -> Self {
+        Self { spec, tree_digest }
     }
 
     /// Return the exact package spec.
@@ -30,86 +18,67 @@ impl ExternalPackageRequirement {
         &self.spec
     }
 
-    /// Return the canonical Complete Package Tree digest.
-    pub fn tree_digest(&self) -> [u8; 16] {
+    /// Return the SHA-256 package tree digest, as defined by the `.typk`
+    /// format.
+    pub fn tree_digest(&self) -> [u8; 32] {
         self.tree_digest
-    }
-
-    /// Return the number of files in the required package tree.
-    pub fn file_count(&self) -> u64 {
-        self.file_count
-    }
-
-    /// Return the total byte length of the required package tree.
-    pub fn byte_length(&self) -> u64 {
-        self.byte_length
     }
 }
 
 /// An exact font container that must be fulfilled outside a Project Pack.
+///
+/// The whole container is required: every face it holds is available to the
+/// document once it is supplied.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExternalFontRequirement {
-    container_digest: [u8; 16],
-    container_length: u64,
+    container_digest: [u8; 32],
+    families: Vec<String>,
     face_indices: Vec<u32>,
 }
 
 impl ExternalFontRequirement {
     pub(super) fn new(
-        container_digest: [u8; 16],
-        container_length: u64,
+        container_digest: [u8; 32],
+        families: Vec<String>,
         face_indices: Vec<u32>,
     ) -> Self {
         Self {
             container_digest,
-            container_length,
+            families,
             face_indices,
         }
     }
 
-    /// Return the canonical font-container digest.
-    pub fn container_digest(&self) -> [u8; 16] {
+    /// Return the SHA-256 digest of the exact container bytes.
+    pub fn container_digest(&self) -> [u8; 32] {
         self.container_digest
     }
 
-    /// Return the exact container byte length.
-    pub fn container_length(&self) -> u64 {
-        self.container_length
+    /// Return the distinct family names of the container's faces, in face
+    /// order.
+    pub fn families(&self) -> &[String] {
+        &self.families
     }
 
-    /// Return the required face indices within the container.
+    /// Return the face indices within the container.
     pub fn face_indices(&self) -> &[u32] {
         &self.face_indices
     }
 }
 
-pub(super) fn external_package_requirement(
-    bundle: &PackageBundle,
-) -> Result<ExternalPackageRequirement, ProjectPackError> {
-    let archive_error = |error: &dyn std::fmt::Display| ProjectPackError::Archive {
-        message: error.to_string(),
-    };
-    let mut pack = typst_pack::Pack::builder("main.typ")
-        .file("main.typ", Vec::new())
-        .map_err(|error| archive_error(&error))?;
-    for (path, data) in bundle.files() {
-        pack = pack
-            .external_package_file(bundle.spec().clone(), path, data)
-            .map_err(|error| archive_error(&error))?;
-    }
-    let pack = pack.build().map_err(|error| archive_error(&error))?;
-    let requirement = pack.package_requirements().first().ok_or_else(|| {
-        ProjectPackError::EmptyExternalPackage {
+/// Compute the `.typk` package tree digest of a Package Bundle.
+pub(super) fn package_tree_digest(bundle: &PackageBundle) -> Result<[u8; 32], ProjectPackError> {
+    if bundle.files().next().is_none() {
+        return Err(ProjectPackError::EmptyExternalPackage {
             spec: bundle.spec().clone(),
+        });
+    }
+    let tree = typst_pack::package::Tree::new(bundle.files()).map_err(|error| {
+        ProjectPackError::Archive {
+            message: error.to_string(),
         }
     })?;
-
-    Ok(ExternalPackageRequirement {
-        spec: requirement.spec().clone(),
-        tree_digest: requirement.tree_identity().digest(),
-        file_count: requirement.file_count(),
-        byte_length: requirement.byte_length(),
-    })
+    Ok(*tree.digest().as_bytes())
 }
 
 pub(super) fn verify_external_package_requirements<'a>(
@@ -121,11 +90,16 @@ pub(super) fn verify_external_package_requirements<'a>(
             get(&expected.spec).ok_or_else(|| ProjectPackError::MissingExternalPackage {
                 spec: expected.spec.clone(),
             })?;
-        if external_package_requirement(bundle)? != *expected {
+        if package_tree_digest(bundle)? != expected.tree_digest {
             return Err(ProjectPackError::MismatchedExternalPackage {
                 spec: expected.spec.clone(),
             });
         }
     }
     Ok(())
+}
+
+/// The SHA-256 digest of exact font container bytes.
+pub(super) fn font_container_digest(data: &[u8]) -> [u8; 32] {
+    *typst_pack::Digest::of(data).as_bytes()
 }
